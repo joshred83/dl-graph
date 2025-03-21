@@ -1,0 +1,13 @@
+name: dl-graph
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - scikit-learn
+  - pandas
+  - numpy
+  - tqdm
+  - pip:
+    - torch==2.6.0
+    - torch-geometric==2.6.1
+
