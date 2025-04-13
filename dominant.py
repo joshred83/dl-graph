@@ -48,6 +48,8 @@ class DOMINANTAugmented(nn.Module):
     backbone : torch.nn.Module, optional
         The backbone of the deep detector implemented in PyG.
         Default: ``torch_geometric.nn.GCN``.
+    apply_augmentation : bool, optional
+        Whether to apply data augmentation. Default: ``True``.
     use_interpolation : bool, optional
         Whether to use feature interpolation. Default: ``False``.
     interpolation_rate : float, optional
@@ -64,6 +66,12 @@ class DOMINANTAugmented(nn.Module):
         Initial alpha value. Default: ``0.5``.
     end_alpha : float, optional
         Final alpha value. Default: ``0.5``.
+    use_aggregation : bool, optional
+        Whether to use feature aggregation. Default: ``False``.
+    aggregation_mean : bool, optional
+        Whether to use mean aggregation. Default: ``False``.
+    aggregation_max : bool, optional
+        Whether to use max aggregation. Default: ``False``.
     pos_weight_a : float, optional
         Positive weight for feature reconstruction loss. Default: ``0.5``.
     pos_weight_s : float, optional
@@ -82,6 +90,7 @@ class DOMINANTAugmented(nn.Module):
                  act=torch.nn.functional.relu,
                  sigmoid_s=False,
                  backbone=GCN,
+                 apply_augmentation=True,
                  use_interpolation=False,
                  interpolation_rate=0.2,
                  use_perturbation=False,
@@ -90,6 +99,9 @@ class DOMINANTAugmented(nn.Module):
                  use_adaptive_alpha=False,
                  alpha=0.5,
                  end_alpha=0.5,
+                 use_aggregation=False,
+                 aggregation_mean=False,
+                 aggregation_max=False,
                  pos_weight_a=0.5, # params for double_recon_loss
                  pos_weight_s=0.5, # params for double_recon_loss
                  bce_s=False, # params for double_recon_loss
@@ -103,13 +115,7 @@ class DOMINANTAugmented(nn.Module):
         encoder_layers = math.floor(num_layers / 2)
         decoder_layers = math.ceil(num_layers / 2)
 
-        self.shared_encoder = backbone(in_channels=in_dim,
-                                       hidden_channels=hid_dim,
-                                       num_layers=encoder_layers,
-                                       out_channels=hid_dim,
-                                       dropout=dropout,
-                                       act=act,
-                                       **kwargs)
+
 
         self.attr_decoder = backbone(in_channels=hid_dim,
                                      hidden_channels=hid_dim,
@@ -132,6 +138,7 @@ class DOMINANTAugmented(nn.Module):
         self.emb = None
         
         # Data augmentation settings
+        self.apply_augmentation = apply_augmentation
         self.use_interpolation = use_interpolation
         self.interpolation_rate = interpolation_rate
         self.use_perturbation = use_perturbation
@@ -144,6 +151,38 @@ class DOMINANTAugmented(nn.Module):
         self.pos_weight_a = pos_weight_a
         self.pos_weight_s = pos_weight_s
         self.bce_s = bce_s
+
+        # Feature aggregation settings
+        self.use_aggregation = use_aggregation
+        self.aggregation_mean = aggregation_mean
+        self.aggregation_max = aggregation_max
+
+        self.original_in_dim = in_dim
+        encoder_in_dim = in_dim
+
+        assert self.use_aggregation == (self.aggregation_mean or self.aggregation_max), \
+            "Feature aggregation must be enabled if mean or max aggregation is used."
+
+        if self.use_aggregation:
+            if self.aggregation_mean:
+                print("Using mean aggregation.")
+                encoder_in_dim += in_dim  # Add another in_dim features
+            if self.aggregation_max:
+                print("Using max aggregation.")
+                encoder_in_dim += in_dim  # Add another in_dim features
+        
+        print(f"Input features dimension: {in_dim}")
+        print(f"Encoder input dimension: {encoder_in_dim}")
+        
+        # this is essential to set the in_channels of the shared_encoder correctly with `encoder_in_dim`
+        # otherwise, the shared_encoder will not work properly and you will have matrix-multiplication issues
+        self.shared_encoder = backbone(in_channels=encoder_in_dim,
+                                       hidden_channels=hid_dim,
+                                       num_layers=encoder_layers,
+                                       out_channels=hid_dim,
+                                       dropout=dropout,
+                                       act=act,
+                                       **kwargs)
 
     def feature_interpolation(self, x: Tensor, adj: Tensor) -> Tensor:
         """
@@ -266,7 +305,7 @@ class DOMINANTAugmented(nn.Module):
         
         return augmented_x, augmented_adj
 
-    def forward(self, x: Tensor, edge_index: Tensor, apply_augmentation: bool = True) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, edge_index: Tensor, apply_augmentation: bool = None) -> Tuple[Tensor, Tensor]:
         """
         Forward computation with optional data augmentation.
 
@@ -277,7 +316,7 @@ class DOMINANTAugmented(nn.Module):
         edge_index : torch.Tensor
             Edge index.
         apply_augmentation : bool
-            Whether to apply data augmentation. Default: ``True``.
+            Whether to apply data augmentation. If None, use default from initialization.
 
         Returns
         -------
@@ -286,46 +325,46 @@ class DOMINANTAugmented(nn.Module):
         s_ : torch.Tensor
             Reconstructed adjacency matrix.
         """
+
+        if apply_augmentation is None:
+            apply_augmentation = self.apply_augmentation
+        
         # Convert edge_index to dense adjacency matrix for augmentation
         dense_adj = to_dense_adj(edge_index)[0]
         
         # Track if we're using the original or augmented graph structure
         using_original_structure = True
-        
-        # Apply data augmentation if enabled
-        if apply_augmentation and (self.use_interpolation or self.use_perturbation):
-            # Apply feature and/or structure augmentation
-            augmented_x, augmented_dense_adj = self.augment_data(x, dense_adj)
+
+        current_x = x
+        current_adj = dense_adj
+        current_edge_index = edge_index
+        #print(f"Original x shape: {x.shape}")
+
+        if apply_augmentation:
+            # First apply operations that don't change feature dimensions
+            if self.use_interpolation or self.use_perturbation:
+                current_x, augmented_adj = self.augment_data(current_x, dense_adj)
+                
+                if self.use_perturbation:
+                    using_original_structure = False
+                    current_adj = augmented_adj
+                    # Convert to edge_index format
+                    current_edge_index = torch.nonzero(augmented_adj > 0).t()
             
-            # If structure was perturbed, convert back to edge_index and use throughout
-            if self.use_perturbation:
-                using_original_structure = False
-                # Convert to edge_index format, handling potential weights
-                # This is more precise than the original implementation
-                augmented_edge_index = torch.nonzero(augmented_dense_adj > 0).t()
-                # If the adjacency matrix has weights, extract them
-                edge_weights = augmented_dense_adj[augmented_edge_index[0], augmented_edge_index[1]]
-                
-                # Use augmented graph structure for encoder
-                self.emb = self.shared_encoder(augmented_x, augmented_edge_index)
-                
-                # Use the same augmented graph structure for decoders
-                x_ = self.attr_decoder(self.emb, augmented_edge_index)
-                s_ = self.struct_decoder(self.emb, augmented_edge_index)
-            else:
-                # Only features were augmented, not structure
-                # Use original edge_index but augmented features
-                self.emb = self.shared_encoder(augmented_x, edge_index)
-                x_ = self.attr_decoder(self.emb, edge_index)
-                s_ = self.struct_decoder(self.emb, edge_index)
-        else:
-            # No augmentation, use original data
-            self.emb = self.shared_encoder(x, edge_index)
-            x_ = self.attr_decoder(self.emb, edge_index)
-            s_ = self.struct_decoder(self.emb, edge_index)
+            # Apply feature aggregation last as it changes input dimensions
+            if self.use_aggregation:
+                current_x = self.feature_aggregation(current_x, current_adj, current_edge_index)
+
+        #print(f"Encoder expected input channels: {self.shared_encoder.in_channels}")
+        #print(f"attr_decoder expected input channels: {self.attr_decoder.in_channels}")
 
         # Store which structure was used for reference or analysis
         self.using_original_structure = using_original_structure
+        
+        # Pass through encoder and decoders
+        self.emb = self.shared_encoder(current_x, current_edge_index)
+        x_ = self.attr_decoder(self.emb, current_edge_index)
+        s_ = self.struct_decoder(self.emb, current_edge_index)
         
         return x_, s_
         
@@ -362,16 +401,6 @@ class DOMINANTAugmented(nn.Module):
             self.current_alpha = self.start_alpha - (self.start_alpha - self.end_alpha) * (epoch / total_epochs)
         return self.current_alpha
     
-    def get_alpha(self) -> float:
-        """
-        Get the current alpha value
-        
-        Returns
-        -------
-        float
-            Current alpha value
-        """
-        return self.current_alpha
     
     def compute_loss(self, x: Tensor, x_: Tensor, s: Tensor, s_: Tensor) -> Tensor:
             """
@@ -398,3 +427,66 @@ class DOMINANTAugmented(nn.Module):
                                 pos_weight_a=self.pos_weight_a,
                                 pos_weight_s=self.pos_weight_s,
                                 bce_s=self.bce_s)
+
+    def feature_aggregation(self, x: Tensor, adj: Tensor, edge_index: Tensor = None) -> Tensor:
+        """
+        Aggregate node features based on neighborhood statistics to obtain more
+        discriminative normality/abnormality patterns.
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node feature matrix
+        adj : torch.Tensor
+            Adjacency matrix (dense format)
+        edge_index : torch.Tensor, optional
+            Edge indices (sparse format, can be used instead of adj)
+            not currently implemented (: 
+                
+        Returns
+        -------
+        torch.Tensor
+            Aggregated features with mean and/or max
+            Note that the output dimension may not match the input dimension, if we did augment.
+            This is because we concatenate the original features with the aggregated ones, across
+            dim=1, i.e. the feature dimension.
+
+            If we did not do aggregation, the output dimension will be original_in_dim
+            If we did aggregation, the output dimension will be original_in_dim + in_dim 
+            (potetnially + in_dim again if we implement multiple aggregations)
+        """
+        x_copy = x.clone()
+        result = x_copy  # Start with original features
+
+        aggregations = []
+        if self.aggregation_mean:
+            # Compute the mean of the features of the neighbors
+            out_degree = torch.sum(adj, dim=1)
+            out_degree = torch.clamp(out_degree, min=1e-10)
+            out_degree_inv = 1.0 / out_degree
+            # we want to use the inverse of the out-degree, because
+            # we need each row to sum to 1, so that the neighbors are weighted appropriately.
+            out_degree_inv = torch.diag(out_degree_inv)
+            row_normalized_adj = torch.mm(out_degree_inv, adj)
+            # Use row-normalized adjacency to aggregate features from neighbors
+            mean_neighbor_features = torch.mm(row_normalized_adj, x_copy)
+            aggregations.append(mean_neighbor_features)
+        
+        if self.aggregation_max:
+            # Softmax-based approximation of max
+            temperature = 0.1
+            # because max is not differentiable
+            # by dividing adj by temperature, we push the highest values to be very high
+            # and the others to be very low
+            # so that when we apply softmax, the highest value will dominate,
+            # thus serving to  approximate the max operation
+            softmax_weights = torch.nn.functional.softmax(adj / temperature, dim=1)
+            max_neighbor_features = torch.mm(softmax_weights, x_copy)
+            aggregations.append(max_neighbor_features)
+        
+        # Concatenate all features
+        if aggregations:
+            concatenated = torch.cat([result] + aggregations, dim=1)
+            return concatenated
+        else:
+            return result
