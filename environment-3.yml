@@ -1,0 +1,26 @@
+name: dl-graph2
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - ipykernel
+  - ipywidgets
+  - matplotlib
+  - numpy
+  - pandas
+  - scipy
+  - seaborn
+  - tqdm
+  - pip:
+    - -f https://data.pyg.org/whl/torch-2.6.0+cpu.html
+    - torch==2.6
+    - torchvision==0.21
+    - torchaudio==2.6
+    - torchmetrics==1.7
+    - torch-geometric
+    - torch-scatter
+    - torch-sparse
+    - torch-cluster
+    - torch-spline-conv
+    - pygod

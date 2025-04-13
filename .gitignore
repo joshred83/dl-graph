@@ -174,3 +174,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+.png
+/elliptic_dataset
+/data/elliptic
