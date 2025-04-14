@@ -178,3 +178,4 @@ cython_debug/
 .png
 /elliptic_dataset
 /data/elliptic
+/saved_models

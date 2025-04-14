@@ -160,6 +160,11 @@ class DOMINANTAugmented(nn.Module):
         self.original_in_dim = in_dim
         encoder_in_dim = in_dim
 
+        if use_aggregation and not apply_augmentation:
+            print("Warning: use_aggregation=True but apply_augmentation=False.")
+            print("Setting apply_augmentation=True to maintain dimensional consistency.")
+            self.apply_augmentation = True
+
         assert self.use_aggregation == (self.aggregation_mean or self.aggregation_max), \
             "Feature aggregation must be enabled if mean or max aggregation is used."
 
@@ -171,8 +176,8 @@ class DOMINANTAugmented(nn.Module):
                 print("Using max aggregation.")
                 encoder_in_dim += in_dim  # Add another in_dim features
         
-        print(f"Input features dimension: {in_dim}")
-        print(f"Encoder input dimension: {encoder_in_dim}")
+        #print(f"Input features dimension: {in_dim}")
+        #print(f"Encoder input dimension: {encoder_in_dim}")
         
         # this is essential to set the in_channels of the shared_encoder correctly with `encoder_in_dim`
         # otherwise, the shared_encoder will not work properly and you will have matrix-multiplication issues
