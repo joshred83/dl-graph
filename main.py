@@ -97,8 +97,7 @@ def create_loader(data:EllipticBitcoinDataset, num_workers=4, batch_size=2048, n
     
     return loader
 
-def train_model(model:DOMINANTAugmented, loader:NeighborLoader, 
-                learning_rate=0.001, device='cpu', num_epochs=10, output_directory='./outputs') -> Dict[str, list]:
+def train_model(model:DOMINANTAugmented, loader:NeighborLoader, learning_rate=0.001, device='cpu', num_epochs=10, output_directory='./outputs', timestamp:str=None) -> Dict[str, list]:
     """
     Train the DOMINANT model
     
@@ -220,7 +219,7 @@ def train_model(model:DOMINANTAugmented, loader:NeighborLoader,
         avg_loss = total_loss / i # and then divided so that it's reflective of the full graph
         loss_history.append(avg_loss)
 
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
+    #timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     model_path = os.path.join(output_directory, f"dominant_model_{timestamp}.pt")
     torch.save(model.state_dict(), model_path)
     print(f"Model saved to {model_path}")
@@ -239,7 +238,7 @@ def train_model(model:DOMINANTAugmented, loader:NeighborLoader,
     
     return metrics
 
-def test_model(model:DOMINANTAugmented, data, device, batch_size=2048, num_neighbors=[10,10], output_directory='./outputs', threshold=0.5) -> Dict[str, float]:
+def test_model(model:DOMINANTAugmented, data, device, batch_size=2048, num_neighbors=[10,10], output_directory='./outputs', threshold=0.5, timestamp:str=None) -> Dict[str, float]:
     """
     Test the DOMINANT model on the test dataset
     
@@ -366,7 +365,7 @@ def test_model(model:DOMINANTAugmented, data, device, batch_size=2048, num_neigh
     print(f"Loss: {metrics['loss']:.3e}")
 
     # Save metrics
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
+    #timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     metrics_path = os.path.join(output_directory, f"test_metrics_{timestamp}.json")
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f)
@@ -375,7 +374,7 @@ def test_model(model:DOMINANTAugmented, data, device, batch_size=2048, num_neigh
     return metrics
 
 
-def plot_loss(loss_history, attr_loss_history, struct_loss_history, output_directory='./outputs'):
+def plot_loss(loss_history, attr_loss_history, struct_loss_history, output_directory='./outputs', timestamp:str=None) -> None:
     """
     Plot the training loss
     
@@ -388,7 +387,7 @@ def plot_loss(loss_history, attr_loss_history, struct_loss_history, output_direc
     Returns:
         None
     """
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
+    #timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
 
     plt.figure(figsize=(10, 6))
     plt.plot(range(1, len(loss_history)+1), loss_history, 'o-', label='Total Loss')
@@ -464,20 +463,23 @@ def main(config=None):
         num_neighbors=config['num_neighbors'],
         use_train_mask=True
     )
-
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
+    print(f"Timestamp: {timestamp}")
     training_metrics = train_model(
         model,
         train_loader,
         learning_rate=config['learning_rate'],
         device=device,
         num_epochs=config['num_epochs'],
-        output_directory=config['save_dir']
+        output_directory=config['save_dir'],
+        timestamp=timestamp
     )
     plot_loss(
         training_metrics['loss_history'],
         training_metrics['attr_loss_history'],
         training_metrics['struct_loss_history'],
-        output_directory=config['save_dir']
+        output_directory=config['save_dir'],
+        timestamp=timestamp
     )
 
     test_metrics = test_model(
@@ -487,7 +489,8 @@ def main(config=None):
         batch_size=config['batch_size'],
         num_neighbors=config['num_neighbors'],
         output_directory=config['save_dir'],
-        threshold=config['threshold']
+        threshold=config['threshold'],
+        timestamp=timestamp
     )
 
 if __name__ == "__main__":
