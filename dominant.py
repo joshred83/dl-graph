@@ -9,6 +9,7 @@ from torch_geometric.utils import to_dense_adj
 from pygod.nn.decoder import DotProductDecoder
 from pygod.nn.functional import double_recon_loss
 
+from backbone import HybridGCNGATBackbone
 
 class DOMINANTAugmented(nn.Module):
     """
@@ -48,6 +49,7 @@ class DOMINANTAugmented(nn.Module):
     backbone : torch.nn.Module, optional
         The backbone of the deep detector implemented in PyG.
         Default: ``torch_geometric.nn.GCN``.
+        - optional: ``HybridGCNGATBackbone``.
     apply_augmentation : bool, optional
         Whether to apply data augmentation. Default: ``True``.
     use_interpolation : bool, optional
@@ -80,16 +82,19 @@ class DOMINANTAugmented(nn.Module):
         Whether to use binary cross entropy for structure reconstruction loss. Default: ``False``.
     **kwargs : optional
         Additional arguments for the backbone.
+            if using HybridGCNGATBackbone, the following additional arguments are available:
+            - heads (int): Number of attention heads for GAT layers, default value is 8 .
+            - v2 (bool): Whether to use GATv2; if False, GAT is used. Default: ``False``.
     """
 
     def __init__(self,
                  in_dim,
                  hid_dim=64,
-                 num_layers=4,
+                 num_layers=5,
                  dropout=0.,
                  act=torch.nn.functional.relu,
                  sigmoid_s=False,
-                 backbone=GCN,
+                 backbone=HybridGCNGATBackbone,
                  apply_augmentation=True,
                  use_interpolation=False,
                  interpolation_rate=0.2,
