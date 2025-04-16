@@ -49,8 +49,6 @@ class HybridGCNGATModel(nn.Module):
         first_conv = GCNConv(
             in_channels, hidden_channels
         )  
-        # the Graph Convolutional Network layer
-        # from the “Semi-supervised Classification with Graph Convolutional Networks” paper.
         self.convs.append(first_conv)
 
         # Middle layers: Alternating GCN and GAT
