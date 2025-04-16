@@ -34,3 +34,5 @@ Prioritization:
 
 just start your own notebook
 try to make code modular (:
+
+EJL 4/15 - suggest implementing custom backbones we can pass as the `backbone` parameter when instantiating our model.
