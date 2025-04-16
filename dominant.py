@@ -94,7 +94,7 @@ class DOMINANTAugmented(nn.Module):
                  dropout=0.,
                  act=torch.nn.functional.relu,
                  sigmoid_s=False,
-                 backbone=HybridGCNGATBackbone,
+                 backbone=GCN,
                  apply_augmentation=True,
                  use_interpolation=False,
                  interpolation_rate=0.2,
@@ -180,6 +180,15 @@ class DOMINANTAugmented(nn.Module):
             if self.aggregation_max:
                 print("Using max aggregation.")
                 encoder_in_dim += in_dim  # Add another in_dim features
+        if self.use_interpolation:
+            print("Using feature interpolation.")
+        
+        if self.use_perturbation:
+            print("Using noise perturbation.")
+        if self.use_adaptive_alpha:
+            print("Using adaptive alpha.")
+        
+        print(f"Using {backbone.__name__} as backbone, with {num_layers} layers.")
         
         #print(f"Input features dimension: {in_dim}")
         #print(f"Encoder input dimension: {encoder_in_dim}")
