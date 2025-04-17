@@ -145,17 +145,37 @@ def train_model(
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    loss_history = []
-    attr_loss_history = []
-    struct_loss_history = []
-    alpha_history = []
+    # Training histories
+    train_histories = {
+        'loss': [],
+        'attr_loss': [],
+        'struct_loss': [],
+        'alpha': []
+    }
+    
+    # Test histories (will be populated during evaluation if performed during training)
+    test_histories = {
+        'loss': [],
+        'attr_loss': [],
+        'struct_loss': []
+    }
+    
+    # Classification metrics histories
+    metrics_histories = {
+        'auc': [],
+        'accuracy': [],
+        'f1': [],
+        'precision': [],
+        'recall': []
+    }
 
     for epoch in tqdm(range(num_epochs), desc="Epochs"):
         print(f"Epoch {epoch+1}/{num_epochs}")
         model.train()
-        total_loss = 0
-        total_attr_loss = 0
-        total_struct_loss = 0
+        train_total_loss = 0
+        train_total_attr_loss = 0
+        train_total_struct_loss = 0
+
 
         if model.use_adaptive_alpha:
             current_alpha = model.update_alpha(epoch, num_epochs)
@@ -203,7 +223,7 @@ def train_model(
             )  # gradient clipping - eric
             optimizer.step()
 
-            total_loss += loss.item()  # but it gets summed for record keeping
+            train_total_loss += loss.item()  # but it gets summed for record keeping
 
             with torch.no_grad():  # since we're just updating the loss scorekeeping. we might want to graph this later in reporting.
                 # Attribute loss
@@ -220,7 +240,7 @@ def train_model(
                     bce_s=model.bce_s,
                 )
                 attr_loss = torch.mean(attr_matrix).item()
-                total_attr_loss += attr_loss
+                train_total_attr_loss += attr_loss
 
                 # Structure loss
                 struct_matrix = model.loss_func(
@@ -234,28 +254,37 @@ def train_model(
                     bce_s=model.bce_s,
                 )
                 struct_loss = torch.mean(struct_matrix).item()
-                total_struct_loss += struct_loss
+                train_total_struct_loss += struct_loss
 
-        batch_count = i + 1  # Total number of batches
-        avg_loss = total_loss / batch_count
-        avg_attr_loss = total_attr_loss / batch_count
-        avg_struct_loss = total_struct_loss / batch_count
+        batch_count = len(loader)  # Total number of batches
+        avg_loss = train_total_loss / batch_count
+        avg_attr_loss = train_total_attr_loss / batch_count
+        avg_struct_loss = train_total_struct_loss / batch_count
         print(
-            f"Avg Loss: {avg_loss:.3e}, "
-            f"Avg Attribute Loss: {avg_attr_loss:.3e}, "
-            f"Avg Structure Loss: {avg_struct_loss:.3e}"
+            f"Avg Batch Loss: {avg_loss:.3e}, "
+            f"Avg Batch Attribute Loss: {avg_attr_loss:.3e}, "
+            f"Avg Batch Structure Loss: {avg_struct_loss:.3e}"
         )
 
-        # Record losses
-        loss_history.append(avg_loss)
-        attr_loss_history.append(avg_attr_loss)
-        struct_loss_history.append(avg_struct_loss)
-        alpha_history.append(current_alpha)
+        # Record training epoch metrics
+        train_histories['loss'].append(avg_loss)
+        train_histories['attr_loss'].append(avg_attr_loss)  
+        train_histories['struct_loss'].append(avg_struct_loss)  
+        train_histories['alpha'].append(current_alpha)  
 
-        avg_loss = (
-            total_loss / i
-        )  # and then divided so that it's reflective of the full graph
-        loss_history.append(avg_loss)
+        evaluate_metrics = {
+            "auc": 0.0,
+            "accuracy": 0.0,
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+        }
+        # Evaluate the model on the training set
+        # Note: This is a placeholder for actual evaluation logic
+        # You may want to implement a proper evaluation function
+        # evaluate_metrics = evaluate_model(model, data, device)
+        # Store evaluation metrics
+
 
     # timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     model_path = os.path.join(output_directory, f"dominant_model_{timestamp}.pt")
@@ -278,6 +307,41 @@ def train_model(
 
     return metrics
 
+def evaluate_model(
+    model: DOMINANTAugmented,
+    data,
+    device,
+    batch_size=2048,
+    num_neighbors=[10, 10],
+    output_directory="./outputs",
+    threshold=0.5,
+    timestamp: str = None,
+) -> Dict[str, float]:
+    """
+    Evaluate the DOMINANT model on the test dataset
+
+    Args:
+        model: The trained model
+        data: The dataset
+        device: Device to evaluate on
+        batch_size: Batch size for evaluation
+        num_neighbors: Number of neighbors to sample
+        output_directory: Directory to save results
+        threshold: Threshold for anomaly detection
+
+    Returns:
+        dict: Evaluation metrics
+    """
+    # Placeholder for evaluation logic
+    # You may want to implement a proper evaluation function
+    # For now, we will just return dummy metrics
+    return {
+        "auc": 0.0,
+        "accuracy": 0.0,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+    }
 
 def test_model(
     model: DOMINANTAugmented,
