@@ -1,4 +1,4 @@
-name: dl-graph2
+name: dl-graph-cpu
 channels:
   - conda-forge
 dependencies:
