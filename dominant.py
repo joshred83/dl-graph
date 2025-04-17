@@ -96,7 +96,7 @@ class DOMINANTAugmented(nn.Module):
         dropout=0.0,
         act=torch.nn.functional.relu,
         sigmoid_s=False,
-        backbone=GATBackbone,
+        backbone=HybridGCNGATBackbone,
         apply_augmentation=True,
         use_interpolation=False,
         interpolation_rate=0.2,

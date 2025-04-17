@@ -179,3 +179,5 @@ cython_debug/
 /elliptic_dataset
 /data/elliptic
 /saved_models
+
+*.DS_Store

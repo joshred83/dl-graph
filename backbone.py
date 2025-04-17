@@ -16,6 +16,8 @@ class HybridGCNGATModel(nn.Module):
         heads=8,
         concat=True,
         v2=True,
+        layer_norm=True,
+        residual=True,
         **kwargs
     ):
         super(HybridGCNGATModel, self).__init__()
@@ -35,6 +37,9 @@ class HybridGCNGATModel(nn.Module):
         self.concat = concat  # Whether to concatenate attention heads, note this is forced to be True for compatibility with our loss function.
         self.v2 = v2  # Whether to use GATv2 or GAT
 
+        self.layer_norm = layer_norm  # Whether to use layer normalization
+        self.residual = residual
+
         if v2:
             self.gat_layer = GATv2Conv
         else:
@@ -43,6 +48,9 @@ class HybridGCNGATModel(nn.Module):
         # Create ModuleList named 'convs' to match expected interface
         # namely in test_model
         self.convs = nn.ModuleList()  # building up our model layer by layer
+
+        if self.layer_norm:
+            self.norms = nn.ModuleList()
         self.act = act  # i.e., reLU
 
         # First layer: GCN for initial representation
@@ -50,6 +58,10 @@ class HybridGCNGATModel(nn.Module):
             in_channels, hidden_channels
         )  
         self.convs.append(first_conv)
+
+        if self.layer_norm:
+            self.norms.append(LayerNorm(hidden_channels))
+
 
         # Middle layers: Alternating GCN and GAT
         hidden_dim = (
@@ -60,6 +72,8 @@ class HybridGCNGATModel(nn.Module):
                 # GCN layer
                 layer = GCNConv(hidden_dim, hidden_channels)
                 self.convs.append(layer)
+                if self.layer_norm:
+                    self.norms.append(LayerNorm(hidden_channels))
                 hidden_dim = hidden_channels
             else:
                 # GAT layer
@@ -75,17 +89,24 @@ class HybridGCNGATModel(nn.Module):
                         hidden_channels // heads
                     )  # Divide to maintain same overall dimension
                     layer = self.gat_layer(hidden_dim, gat_hidden, heads=heads, concat=True, add_self_loops=True)
+                    if self.layer_norm:
+                        self.norms.append(LayerNorm(gat_hidden * heads))
+
                     hidden_dim = gat_hidden * heads
                 else:  # not followed but putting here for completeness
                     layer = self.gat_layer(
                         hidden_dim, hidden_channels, heads=heads, concat=False, add_self_loops=True
                     )
+                    if self.layer_norm:
+                        self.norms.append(LayerNorm(hidden_channels))
                     hidden_dim = hidden_channels
                 self.convs.append(layer)
 
 
 
         self.convs.append(GCNConv(hidden_dim, out_channels))
+        if self.layer_norm:
+            self.norms.append(LayerNorm(out_channels))
 
         # With our default number of layers = 4, we would have:
         # GCN -> GAT -> GCN -> GCN
@@ -113,15 +134,21 @@ class HybridGCNGATModel(nn.Module):
 
     def forward(self, x, edge_index):
         for i, conv in enumerate(self.convs):
-            x = conv(x, edge_index)
+            h = conv(x, edge_index)
+
+            # apply layer normalization
+            if self.layer_norm and i < len(self.norms):
+                h = self.norms[i](h)
 
             # Only reshape if using GAT with concat=False (which gives multi-dimensional output)
             if isinstance(conv, self.gat_layer) and not self.concat and x.dim() > 2:
-                x = x.mean(dim=1)  # Average the heads instead of concatenating
+                h = h.mean(dim=1)  # Average the heads instead of concatenating
 
             if i < len(self.convs) - 1:
-                x = self.act(x)
-                x = F.dropout(x, p=self.dropout, training=self.training)
+                h = self.act(h)
+                h = F.dropout(h, p=self.dropout, training=self.training)
+
+            x = h
 
         return x
 
