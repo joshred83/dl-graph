@@ -1,4 +1,4 @@
-name: dl-graph2
+name: dl-graph-gpu
 channels:
   - conda-forge
 dependencies:
@@ -39,4 +39,4 @@ dependencies:
     - torch-cluster==1.6.3+pt26cu124
     - torch-spline-conv==1.2.2+pt26cu124
     - pygod==1.1.0
-prefix: /home/red/miniforge3/envs/dl-graph2
+
