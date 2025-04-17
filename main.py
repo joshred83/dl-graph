@@ -47,8 +47,8 @@ def create_model(data, config=None) -> Tuple[DOMINANTAugmented, torch.device]:
         config = {
             "num_layers": 3,
             "hidden_dim": 64,
-            "num_heads": 8,
-            "dropout": 0.1,
+            "num_heads": 4,
+            "dropout": 0.2,
             "use_interpolation": True,
             "use_perturbation": True,
             "interpolation_rate": 0.1,
@@ -63,6 +63,9 @@ def create_model(data, config=None) -> Tuple[DOMINANTAugmented, torch.device]:
         }
 
     model = DOMINANTAugmented(
+        num_layers=config["num_layers"],
+        hidden_dim=config["hidden_dim"],
+        num_heads=config["num_heads"],
         dropout=config["dropout"],
         use_interpolation=config["use_interpolation"],
         use_perturbation=config["use_perturbation"],
@@ -489,6 +492,9 @@ def main(config=None):
     if config is None:
         config = {
             # Model parameters
+            "num_layers": 3,
+            "hidden_dim": 64,
+            "num_heads": 4,
             "dropout": 0.1,
             "apply_augmentation": True,
             "use_interpolation": True,

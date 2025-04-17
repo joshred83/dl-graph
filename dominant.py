@@ -9,7 +9,7 @@ from torch_geometric.utils import to_dense_adj
 from pygod.nn.decoder import DotProductDecoder
 from pygod.nn.functional import double_recon_loss
 
-from backbone import HybridGCNGATBackbone
+from backbone import HybridGCNGATBackbone, GATBackbone
 
 
 class DOMINANTAugmented(nn.Module):
@@ -85,7 +85,7 @@ class DOMINANTAugmented(nn.Module):
         Additional arguments for the backbone.
             if using HybridGCNGATBackbone, the following additional arguments are available:
             - heads (int): Number of attention heads for GAT layers, default value is 8 .
-            - v2 (bool): Whether to use GATv2; if False, GAT is used. Default: ``False``.
+            - v2 (bool): Whether to use GATv2; if False, GAT is used. Default: ``True``.
     """
 
     def __init__(
