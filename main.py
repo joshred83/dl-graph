@@ -292,10 +292,10 @@ def train_model(
     print(f"Model saved to {model_path}")
 
     metrics = {
-        "loss_history": loss_history,
-        "attr_loss_history": attr_loss_history,
-        "struct_loss_history": struct_loss_history,
-        "alpha_history": alpha_history,
+        "loss_history": train_histories['loss'],
+        "attr_loss_history": train_histories['attr_loss'],
+        "struct_loss_history": train_histories['struct_loss'],
+        "alpha_history": train_histories['alpha'],
     }
 
     metrics_path = os.path.join(output_directory, f"train_metrics_{timestamp}.json")
