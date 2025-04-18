@@ -18,6 +18,7 @@ class HybridGCNGATModel(nn.Module):
         v2=True,
         layer_norm=True,
         residual=True,
+        last_layer='GAT',
         **kwargs
     ):
         super(HybridGCNGATModel, self).__init__()
@@ -44,6 +45,9 @@ class HybridGCNGATModel(nn.Module):
             self.gat_layer = GATv2Conv
         else:
             self.gat_layer = GATConv
+
+        assert (last_layer == 'GAT' or last_layer == 'GCN'), "last_layer must be either 'GAT' or 'GCN'"
+        self.last_layer = last_layer
 
         # Create ModuleList named 'convs' to match expected interface
         # namely in test_model
@@ -103,15 +107,25 @@ class HybridGCNGATModel(nn.Module):
                 self.convs.append(layer)
 
 
+        if self.last_layer == 'GAT':
+            self.convs.append(GATv2Conv(
+            in_channels=hidden_channels, 
+            out_channels=out_channels, 
+            heads=1, 
+            dropout=0.0,  # No dropout in final layer
+            add_self_loops=True,
+            concat=False  # Average multiple heads over one head, this works out dimension wise
+        ))
+        elif self.last_layer == 'GCN':
+            self.convs.append(GCNConv(hidden_dim, out_channels))
 
-        self.convs.append(GCNConv(hidden_dim, out_channels))
         if self.layer_norm:
             self.norms.append(LayerNorm(out_channels))
 
         # With our default number of layers = 4, we would have:
         # GCN -> GAT -> GCN -> GCN
-        # so from a theoretical perspective it might be better to have five layers, i.e
-        # GCN -> GAT -> GCN -> GAT -> GCN
+        # so from a theoretical perspective it might be better to end with GAT
+        # GCN -> GAT -> GCN -> GAT, e.g.
 
         """
         https://www.sciencedirect.com/science/article/abs/pii/S1389128625000507
@@ -223,6 +237,9 @@ class GATBackbone(nn.Module):
         # Skip connections for residual if dimensions match
         self.use_first_res = (in_channels == hidden_channels * heads)
         
+        # While this paper uses "MGAT" instead of the conventional "GAT"
+        # it does use multiple GATs https://www.mdpi.com/2227-7390/12/2/293 albeit in parallel.
+
         # Input layer
         self.convs.append(GATv2Conv(
             in_channels=in_channels, 

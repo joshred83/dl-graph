@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from torch_geometric.datasets import EllipticBitcoinDataset
 from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import to_dense_adj
-from dominant import (
+from src.dominant import (
     DOMINANTAugmented,
 )  # note we're using the custom DOMINANTAugmented class here
 from tqdm import tqdm  #
@@ -20,9 +20,19 @@ from sklearn.metrics import (
 )
 from typing import Dict, Tuple
 import numpy as np
+from src.loaders import load_elliptic, make_loader
+from src.traditional_models import train_traditional_classifier
+import argparse
+import yaml
+import warnings
 
 
-def load_dataset(root="data/elliptic", force_reload=False):
+def load_dataset(root=None, 
+        force_reload=False,
+        use_aggregated=True,
+        use_temporal=False,
+        t=None,
+        summarize=False):
     """
     Load the EllipticBitcoinDataset
 
@@ -33,8 +43,14 @@ def load_dataset(root="data/elliptic", force_reload=False):
     Returns:
         data: The loaded dataset
     """
-    dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
-    data = dataset[0]
+    #dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
+    #data = dataset[0]
+    data = load_elliptic(root=root, 
+        force_reload=force_reload,
+        use_aggregated=use_aggregated,
+        use_temporal=use_temporal,
+        t=t,
+        summarize=summarize)
     return data
 
 
@@ -305,7 +321,7 @@ def train_model(
         )  # apparently json doesn't like torch tensors
     print(f"Metrics saved to {metrics_path}")
 
-    return metrics
+    return model, metrics
 
 def evaluate_model(
     model: DOMINANTAugmented,
@@ -545,6 +561,140 @@ def plot_loss(
     )
     plt.close()
 
+def extract_embeddings(
+    model: DOMINANTAugmented,
+    data,
+    device,
+    batch_size=2048,
+    num_neighbors=[10, 10],
+    save=True,
+    output_directory="./outputs",
+    timestamp: str = None,
+) -> Dict[str, np.ndarray]:
+    """
+    Extract node embeddings from the trained DOMINANT model
+
+    Args:
+        model: The trained model
+        data: The dataset
+        device: Device to use
+        batch_size: Batch size for processing
+        num_neighbors: Number of neighbors to sample
+        output_directory: Directory to save results
+        timestamp: Timestamp for file naming
+
+    Returns:
+        dict: Node embeddings and labels
+    """
+    os.makedirs(output_directory, exist_ok=True)
+
+    # Create loader for all data (both train and test)
+    loader = create_loader(
+        data, batch_size=batch_size, num_neighbors=num_neighbors, use_train_mask=None
+    )
+
+    model.eval()
+
+    all_embeddings = []
+    all_node_ids = []
+    all_labels = []
+
+    with torch.no_grad():
+        for batch in tqdm(loader, desc="Extracting embeddings"):
+            batch = batch.to(device)
+            x = batch.x
+            edge_index = batch.edge_index
+            batch_size = getattr(batch, "batch_size", x.size(0))
+
+            # Forward pass to get embeddings (but don't need reconstructions)
+            _, _ = model(x, edge_index, apply_augmentation=False)
+            # The embeddings are stored in model.emb after forward pass
+            batch_embeddings = model.emb[:batch_size].cpu().numpy()
+            batch_labels = batch.y[:batch_size].cpu().numpy()
+            batch_ids = batch.index[:batch_size].cpu().numpy() if hasattr(batch, 'index') else np.arange(batch_size)
+
+            all_embeddings.append(batch_embeddings)
+            all_node_ids.append(batch_ids)
+            all_labels.append(batch_labels)
+
+    # Concatenate results
+    embeddings = np.vstack(all_embeddings)
+    node_ids = np.concatenate(all_node_ids)
+    labels = np.concatenate(all_labels)
+
+    # Save embeddings
+    if save:
+        embeddings_file = os.path.join(output_directory, f"node_embeddings_{timestamp}.npz")
+        np.savez(embeddings_file, embeddings=embeddings, node_ids=node_ids, labels=labels)
+        print(f"Embeddings saved to {embeddings_file}")
+
+    return {
+        "embeddings": embeddings,
+        "node_ids": node_ids,
+        "labels": labels
+    }
+
+def train_test_transfer_learning(
+    model: DOMINANTAugmented,  
+    data,
+    device,
+    config: Dict[str, any] = None,
+    timestamp: str = None,
+) -> Dict[str, float]:
+    
+    embeddings_data = extract_embeddings(
+        model,
+        data,
+        device,
+        batch_size=config["batch_size"],
+        num_neighbors=config["num_neighbors"],
+        output_directory=config["save_dir"],
+        timestamp=timestamp,
+    )
+    classifier_results = {}
+    for classifier_type in config.get("classifiers", []):
+        if classifier_type in ["rf", "mlp"]:
+            print(f"\nTraining {classifier_type.upper()} classifier...")
+            classifier_results[classifier_type] = train_traditional_classifier(
+                embeddings_data["embeddings"],
+                embeddings_data["labels"],
+                classifier_type=classifier_type,
+                output_directory=config["save_dir"],
+                timestamp=timestamp,
+            )
+        else:
+            print(f" Unknown classifier type '{classifier_type}'. Skipping")
+
+def load_model_for_transfer_learning(
+    model_path: str,
+    data,
+    device=None,
+    config=None,
+) -> Dict[str, any]:
+    """
+    Load a saved model and use it for transfer learning
+    
+    Args:
+        model_path: Path to the saved model
+        data: The dataset
+        device: Device to use (if None, will use CUDA if available)
+        config: Model configuration
+        
+    Returns:
+        dict: Results from transfer learning
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Create a new model with the same architecture
+    model, _ = create_model(data, config)
+    
+    # Load saved weights
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model = model.to(device)
+    print(f"Loaded model from {model_path}")
+
+    return model, device
 
 def main(config=None):
     """
@@ -560,8 +710,8 @@ def main(config=None):
             "hidden_dim": 64,
             "num_heads": 4,
             "dropout": 0.1,
-            "apply_augmentation": True,
-            "use_interpolation": True,
+            "apply_augmentation": False,
+            "use_interpolation": False,
             "use_perturbation": True,
             "interpolation_rate": 0.1,
             "feature_noise": 0.05,
@@ -569,9 +719,9 @@ def main(config=None):
             "use_adaptive_alpha": True,
             "start_alpha": 0.6,
             "end_alpha": 0.5,
-            "use_aggregation": True,
-            "aggregation_mean": True,
-            "aggregation_max": True,
+            "use_aggregation": False,
+            "aggregation_mean": False,
+            "aggregation_max": False,
             # Training parameters
             "batch_size": 2048,
             "num_neighbors": [10, 10],
@@ -582,48 +732,90 @@ def main(config=None):
             "save_dir": "./saved_models",
             # threshold for our testing
             "threshold": 0.5,
+            # transfer learning options
+            "transfer_learning": True,
+            "classifiers": ["rf", "mlp"],
+            "load_model_path": None,
         }
 
     data = load_dataset(root=config["data_root"])
-
-    model, device = create_model(data, config)
-
-    train_loader = create_loader(
-        data,
-        batch_size=config["batch_size"],
-        num_neighbors=config["num_neighbors"],
-        use_train_mask=True,
-    )
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     print(f"Timestamp: {timestamp}")
-    training_metrics = train_model(
-        model,
-        train_loader,
-        learning_rate=config["learning_rate"],
-        device=device,
-        num_epochs=config["num_epochs"],
-        output_directory=config["save_dir"],
-        timestamp=timestamp,
-    )
-    plot_loss(
-        training_metrics["loss_history"],
-        training_metrics["attr_loss_history"],
-        training_metrics["struct_loss_history"],
-        output_directory=config["save_dir"],
-        timestamp=timestamp,
-    )
 
-    test_metrics = test_model(
-        model,
-        data,
-        device,
-        batch_size=config["batch_size"],
-        num_neighbors=config["num_neighbors"],
-        output_directory=config["save_dir"],
-        threshold=config["threshold"],
-        timestamp=timestamp,
-    )
+    if config["load_model_path"] is None:
+
+        model, device = create_model(data, config)
+
+        train_loader = create_loader(
+            data,
+            batch_size=config["batch_size"],
+            num_neighbors=config["num_neighbors"],
+            use_train_mask=True,
+        )
+
+        model, training_metrics = train_model(
+            model,
+            train_loader,
+            learning_rate=config["learning_rate"],
+            device=device,
+            num_epochs=config["num_epochs"],
+            output_directory=config["save_dir"],
+            timestamp=timestamp,
+        )
+        plot_loss(
+            training_metrics["loss_history"],
+            training_metrics["attr_loss_history"],
+            training_metrics["struct_loss_history"],
+            output_directory=config["save_dir"],
+            timestamp=timestamp,
+        )
+
+        test_metrics = test_model(
+            model,
+            data,
+            device,
+            batch_size=config["batch_size"],
+            num_neighbors=config["num_neighbors"],
+            output_directory=config["save_dir"],
+            threshold=config["threshold"],
+            timestamp=timestamp,
+        )
+    elif config["load_model_path"] is not None:
+        print(f"Loading pre-trained model from {config['load_model_path']}")
+        model, device = load_model_for_transfer_learning(
+            model_path=config["load_model_path"],
+            data=data,
+            config=config,)
+
+
+
+    if config["transfer_learning"]:
+        # Transfer learning logic here
+        train_test_transfer_learning(
+            model,
+            data,
+            device,
+            config=config,
+            timestamp=timestamp,
+        )
+        
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Train and evaluate DOMINANT model on Elliptic Bitcoin dataset')
+    parser.add_argument('--config', type=str, help='Path to YAML configuration file')
+    args = parser.parse_args()
+    
+    config = None
+
+    if args.config:
+        try:
+            with open(args.config, 'r') as file:
+                config = yaml.safe_load(file)
+            print(f"Loaded configuration from {args.config}")
+            print(f"Configuration: {config}")
+        except Exception as e:
+            print(f"Error loading configuration file: {e}")
+            print("Using default configuration instead.")
+    
+    main(config)
