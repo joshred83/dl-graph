@@ -3,6 +3,7 @@ num_layers: 3
 hidden_dim: 64
 num_heads: 4
 dropout: 0.1
+backbone: "hybrid"
 apply_augmentation: false
 use_interpolation: false
 use_perturbation: true

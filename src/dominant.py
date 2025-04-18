@@ -96,7 +96,7 @@ class DOMINANTAugmented(nn.Module):
         dropout=0.0,
         act=torch.nn.functional.relu,
         sigmoid_s=False,
-        backbone=HybridGCNGATBackbone,
+        backbone='gcn',
         apply_augmentation=True,
         use_interpolation=False,
         interpolation_rate=0.2,
@@ -115,7 +115,23 @@ class DOMINANTAugmented(nn.Module):
         **kwargs,
     ):
 
+
+
         super(DOMINANTAugmented, self).__init__()
+
+        assert backbone in [
+            'gcn',
+            'gat',
+            'hybrid',
+        ], "Backbone must be one of ['gcn', 'gat', 'hybrid']"
+
+        match backbone:
+            case 'gcn':
+                backbone = GCN
+            case 'gat':
+                backbone = GATBackbone
+            case 'hybrid':
+                backbone = HybridGCNGATBackbone
 
         # split the number of layers for the encoder and decoders
         assert num_layers >= 2, "Number of layers must be greater than or equal to 2."
