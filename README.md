@@ -1,11 +1,10 @@
-ejl - please see somewhat YOLO'd update of dominant in `dominant.py`
-
-calling convention is basically the same with new options/params.
-
+# README
 usage:
-- update the config dict in `main.py`
-- run `main.py` which implements training and testing loops.
-- loss plots, train/test metrics, and model params are saved in the `saved_models` directory
+- update the config in `configs/default_config.yaml` or create your own config file
+- run `python main.py --config configs/default_config.yaml` to train and test the model
+- the model, as well as metrics, will be saved in the `saved_models` directory
+- if transfer learning is included, models and metrics for transfer learning models will be saved in this directory as well
+
 
 
 ### TODO 4-14
