@@ -46,6 +46,9 @@ class HybridGCNGATModel(nn.Module):
         else:
             self.gat_layer = GATConv
 
+        assert (last_layer == 'GAT' or last_layer == 'GCN'), "last_layer must be either 'GAT' or 'GCN'"
+        self.last_layer = last_layer
+
         # Create ModuleList named 'convs' to match expected interface
         # namely in test_model
         self.convs = nn.ModuleList()  # building up our model layer by layer
@@ -104,7 +107,7 @@ class HybridGCNGATModel(nn.Module):
                 self.convs.append(layer)
 
 
-        if last_layer == 'GAT':
+        if self.last_layer == 'GAT':
             self.convs.append(GATv2Conv(
             in_channels=hidden_channels, 
             out_channels=out_channels, 
@@ -113,7 +116,7 @@ class HybridGCNGATModel(nn.Module):
             add_self_loops=True,
             concat=False  # Average multiple heads over one head, this works out dimension wise
         ))
-        else:
+        elif self.last_layer == 'GCN':
             self.convs.append(GCNConv(hidden_dim, out_channels))
 
         if self.layer_norm:
