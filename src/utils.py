@@ -51,10 +51,10 @@ def summarize_graph(data):
 if __name__ == "__main__":
     # Example usage
     from loaders import load_elliptic
-    data = load_elliptic(use_temporal=True, t=2)
+    data = load_elliptic(use_temporal=True, t=2, summarize=True)
     
     print(data)
-    data = load_elliptic(use_temporal=True, t=2, use_aggregated=True)
+    data = load_elliptic(use_temporal=True, t=2, use_aggregated=True, summarize=True)
     
     print()
 

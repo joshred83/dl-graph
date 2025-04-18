@@ -9,7 +9,7 @@ from torch_geometric.utils import to_dense_adj
 from pygod.nn.decoder import DotProductDecoder
 from pygod.nn.functional import double_recon_loss
 
-from backbone import HybridGCNGATBackbone, GATBackbone
+from src.backbone import HybridGCNGATBackbone, GATBackbone
 
 
 class DOMINANTAugmented(nn.Module):
@@ -227,6 +227,9 @@ class DOMINANTAugmented(nn.Module):
         -------
         torch.Tensor
             Interpolated features
+
+        References
+        - https://arxiv.org/pdf/2009.11746
         """
         x_copy = x.clone()
 

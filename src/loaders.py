@@ -3,7 +3,7 @@ from torch_geometric.loader import NeighborLoader, ClusterLoader, ClusterData
 import torch
 import torch_geometric as pyg
 from torch_geometric import transforms
-from utils import summarize_graph
+from src.utils import summarize_graph
 import inspect
 import warnings
 from torch_geometric.loader import ClusterData, ClusterLoader

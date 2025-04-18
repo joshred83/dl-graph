@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from torch_geometric.datasets import EllipticBitcoinDataset
 from torch_geometric.loader import NeighborLoader
 from torch_geometric.utils import to_dense_adj
-from dominant import (
+from src.dominant import (
     DOMINANTAugmented,
 )  # note we're using the custom DOMINANTAugmented class here
 from tqdm import tqdm  #
@@ -20,9 +20,15 @@ from sklearn.metrics import (
 )
 from typing import Dict, Tuple
 import numpy as np
+from src.loaders import load_elliptic, make_loader
 
 
-def load_dataset(root="data/elliptic", force_reload=False):
+def load_dataset(root=None, 
+        force_reload=False,
+        use_aggregated=False,
+        use_temporal=False,
+        t=None,
+        summarize=False):
     """
     Load the EllipticBitcoinDataset
 
@@ -33,8 +39,14 @@ def load_dataset(root="data/elliptic", force_reload=False):
     Returns:
         data: The loaded dataset
     """
-    dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
-    data = dataset[0]
+    #dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
+    #data = dataset[0]
+    data = load_elliptic(root=root, 
+        force_reload=force_reload,
+        use_aggregated=use_aggregated,
+        use_temporal=use_temporal,
+        t=t,
+        summarize=summarize)
     return data
 
 
