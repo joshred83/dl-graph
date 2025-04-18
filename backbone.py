@@ -124,8 +124,8 @@ class HybridGCNGATModel(nn.Module):
 
         # With our default number of layers = 4, we would have:
         # GCN -> GAT -> GCN -> GCN
-        # so from a theoretical perspective it might be better to have five layers, i.e
-        # GCN -> GAT -> GCN -> GAT -> GCN
+        # so from a theoretical perspective it might be better to end with GAT
+        # GCN -> GAT -> GCN -> GAT, e.g.
 
         """
         https://www.sciencedirect.com/science/article/abs/pii/S1389128625000507
