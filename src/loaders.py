@@ -7,6 +7,7 @@ from utils import summarize_graph
 import inspect
 import warnings
 from torch_geometric.loader import ClusterData, ClusterLoader
+import argparse
 
 def load_elliptic(
     root=None, 
@@ -14,6 +15,7 @@ def load_elliptic(
     use_aggregated=False,
     use_temporal=False,
     t=None,
+    summarize=False
 
 ):
     """
@@ -81,8 +83,9 @@ def load_elliptic(
         # Remove the aggregated features, correcting for the temporal case
         # where the first feature is the time step
         data.x = data.x[:, 0:93]
-                        
-    summarize_graph(data)
+
+    if summarize:                    
+        summarize_graph(data)
     return data
 
 def make_loader(data, loader_type='neighbor', **kwargs):
@@ -188,16 +191,26 @@ def _merge_defaults(kwargs, defaults):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run data loader with cluster or neighbor loader.")
+    parser.add_argument("--cluster", action="store_true", help="Use cluster loader if set to True.")
+    args = parser.parse_args()
+
+    
+    
     # Example usage
-    data = load_elliptic(use_temporal=True, t=2)
-    loader = make_loader(data, loader_type='cluster', batch_size=20,
-                           num_parts=100, recursive=False,
-                           shuffle=True,
-                           num_workers=0)
-    for batch in loader:
-        print(batch)
-        break
-    loader = make_loader(data, loader_type='neighbor', batch_size=1024, shuffle=True,)
+    data = load_elliptic(use_temporal=True, t=2, summarize=True)
+
+    if args.cluster:
+        print("Using Cluster Loader:")
+        loader = make_loader(data, loader_type='cluster', batch_size=20,
+                            num_parts=100, recursive=False,
+                            shuffle=True,
+                            num_workers=0)
+    else:
+        print("Using Neighbor Loader:")
+
+        # Note: The batch size and other parameters can be adjusted as needed.
+        loader = make_loader(data, loader_type='neighbor', batch_size=1024, shuffle=True,)
 
     for batch in loader:
         print(batch)
