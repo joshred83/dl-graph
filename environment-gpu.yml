@@ -14,6 +14,7 @@ dependencies:
   - scipy
   - seaborn
   - tqdm
+  - pyyaml
   - pip:
     - --extra-index-url https://download.pytorch.org/whl/cu124
     - -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
