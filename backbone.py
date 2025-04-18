@@ -18,6 +18,7 @@ class HybridGCNGATModel(nn.Module):
         v2=True,
         layer_norm=True,
         residual=True,
+        last_layer='GAT',
         **kwargs
     ):
         super(HybridGCNGATModel, self).__init__()
@@ -103,8 +104,18 @@ class HybridGCNGATModel(nn.Module):
                 self.convs.append(layer)
 
 
+        if last_layer == 'GAT':
+            self.convs.append(GATv2Conv(
+            in_channels=hidden_channels, 
+            out_channels=out_channels, 
+            heads=1, 
+            dropout=0.0,  # No dropout in final layer
+            add_self_loops=True,
+            concat=False  # Average multiple heads over one head, this works out dimension wise
+        ))
+        else:
+            self.convs.append(GCNConv(hidden_dim, out_channels))
 
-        self.convs.append(GCNConv(hidden_dim, out_channels))
         if self.layer_norm:
             self.norms.append(LayerNorm(out_channels))
 
@@ -223,6 +234,9 @@ class GATBackbone(nn.Module):
         # Skip connections for residual if dimensions match
         self.use_first_res = (in_channels == hidden_channels * heads)
         
+        # While this paper uses "MGAT" instead of the conventional "GAT"
+        # it does use multiple GATs https://www.mdpi.com/2227-7390/12/2/293 albeit in parallel.
+
         # Input layer
         self.convs.append(GATv2Conv(
             in_channels=in_channels, 

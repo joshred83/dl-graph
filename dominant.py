@@ -92,7 +92,7 @@ class DOMINANTAugmented(nn.Module):
         self,
         in_dim,
         hid_dim=64,
-        num_layers=5,
+        num_layers=3,
         dropout=0.0,
         act=torch.nn.functional.relu,
         sigmoid_s=False,
