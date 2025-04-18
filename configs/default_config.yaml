@@ -1,0 +1,35 @@
+# Model parameters
+num_layers: 3
+hidden_dim: 64
+num_heads: 4
+dropout: 0.1
+apply_augmentation: false
+use_interpolation: false
+use_perturbation: true
+interpolation_rate: 0.1
+feature_noise: 0.05
+structure_noise: 0.05
+use_adaptive_alpha: true
+start_alpha: 0.6
+end_alpha: 0.5
+use_aggregation: false
+aggregation_mean: false
+aggregation_max: false
+
+# Training parameters
+batch_size: 2048
+num_neighbors: [10, 10]
+learning_rate: 0.001
+num_epochs: 2
+
+# Paths for output
+data_root: "data/elliptic"
+save_dir: "./saved_models"
+
+# Threshold for testing
+threshold: 0.5
+
+# Transfer learning options
+transfer_learning: true
+classifiers: ["rf", "mlp"]
+load_model_path: ~ # this is yaml for python-None

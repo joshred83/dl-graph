@@ -22,6 +22,9 @@ from typing import Dict, Tuple
 import numpy as np
 from src.loaders import load_elliptic, make_loader
 from src.traditional_models import train_traditional_classifier
+import argparse
+import yaml
+import warnings
 
 
 def load_dataset(root=None, 
@@ -732,7 +735,7 @@ def main(config=None):
             # transfer learning options
             "transfer_learning": True,
             "classifiers": ["rf", "mlp"],
-            "load_model_path": "/Users/ericloui/Documents/OMSA/DL_CS7643/project/dl-graph/saved_models/dominant_model_2025-04-18_12_22.pt",
+            "load_model_path": None,
         }
 
     data = load_dataset(root=config["data_root"])
@@ -777,7 +780,7 @@ def main(config=None):
             threshold=config["threshold"],
             timestamp=timestamp,
         )
-    elif config["load_model_path"]:
+    elif config["load_model_path"] is not None:
         print(f"Loading pre-trained model from {config['load_model_path']}")
         model, device = load_model_for_transfer_learning(
             model_path=config["load_model_path"],
@@ -799,4 +802,20 @@ def main(config=None):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Train and evaluate DOMINANT model on Elliptic Bitcoin dataset')
+    parser.add_argument('--config', type=str, help='Path to YAML configuration file')
+    args = parser.parse_args()
+    
+    config = None
+
+    if args.config:
+        try:
+            with open(args.config, 'r') as file:
+                config = yaml.safe_load(file)
+            print(f"Loaded configuration from {args.config}")
+            print(f"Configuration: {config}")
+        except Exception as e:
+            print(f"Error loading configuration file: {e}")
+            print("Using default configuration instead.")
+    
+    main(config)
