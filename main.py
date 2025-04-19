@@ -203,7 +203,7 @@ def train_model(
         else:
             current_alpha = model.current_alpha
 
-        for i, batch in tqdm(enumerate(loader), desc=f"Epoch {epoch+1}", leave=True):
+        for i, batch in enumerate(loader):
             batch = batch.to(device)
             x = batch.x
             edge_index = batch.edge_index
