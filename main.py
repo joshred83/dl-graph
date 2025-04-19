@@ -17,6 +17,7 @@ from sklearn.metrics import (
     f1_score,
     precision_score,
     recall_score,
+    classification_report,
 )
 from typing import Dict, Tuple
 import numpy as np
@@ -485,6 +486,9 @@ def test_model(
     f1 = f1_score(labels, predictions)
     precision = precision_score(labels, predictions)
     recall = recall_score(labels, predictions)
+    classification_report_str = classification_report(
+        labels, predictions, output_dict=True
+    )
     avg_loss = np.mean(all_losses)
 
     metrics = {
@@ -494,6 +498,7 @@ def test_model(
         "precision": float(precision),
         "recall": float(recall),
         "loss": float(avg_loss),
+        "classification_report": classification_report_str,
     }
 
     # Print metrics
@@ -504,6 +509,8 @@ def test_model(
     print(f"Precision: {metrics['precision']:.3f}")
     print(f"Recall: {metrics['recall']:.3f}")
     print(f"Loss: {metrics['loss']:.3e}")
+    print("\nClassification Report:")
+    print(classification_report_str)
 
     # Save metrics
     # timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
