@@ -55,7 +55,14 @@ def load_dataset(root=None,
 
 
 def create_model(data, config=None) -> Tuple[DOMINANTAugmented, torch.device]:
-    """create the DOMINANT model"""
+    """create the DOMINANT model with the specified configuration
+    Args:
+        data: The dataset
+        config: Configuration for the model
+        - if no config is provided, a default configuration will be used
+    Returns:
+        model: The created model
+        device: The device to use (CPU or GPU)"""
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -65,18 +72,18 @@ def create_model(data, config=None) -> Tuple[DOMINANTAugmented, torch.device]:
             "hidden_dim": 64,
             "num_heads": 4,
             "dropout": 0.2,
-            "backbone": "gat",
-            "use_interpolation": True,
-            "use_perturbation": True,
+            "backbone": "gcn",
+            "use_interpolation": False,
+            "use_perturbation": False,
             "interpolation_rate": 0.1,
             "feature_noise": 0.05,
             "structure_noise": 0.05,
-            "use_adaptive_alpha": True,
-            "start_alpha": 0.6,
+            "use_adaptive_alpha": False,
+            "start_alpha": 0.5,
             "end_alpha": 0.5,
             "use_aggregation": True,
-            "aggregation_mean": True,
-            "aggregation_max": True,
+            "aggregation_mean": False,
+            "aggregation_max": False,
         }
 
 
@@ -124,6 +131,7 @@ def create_loader(
         loader: The NeighborLoader
     """
     input_nodes = data.train_mask if use_train_mask else data.test_mask
+    # data already implements the train/test split
 
     # Create a NeighborLoader for the dataset
     loader = NeighborLoader(
