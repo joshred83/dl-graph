@@ -211,7 +211,7 @@ def train_model(
 
             optimizer.zero_grad()
             x_hat, s_hat = model(
-                x, edge_index, apply_augmentation=True
+                x, edge_index, apply_augmentation=False
             )  # this is working fine currently but we may need to change if we don't use augmentation
             s = to_dense_adj(edge_index)[0].to(device)
 
