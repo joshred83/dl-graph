@@ -470,29 +470,52 @@ def test_model(
     scores = all_scores[mask]
     labels = all_labels[mask]
 
+    """The nodes are then ranked according to their anomaly scores in
+    descending order, and the top-k nodes are recognized as anoma-
+    lies - page 7 in https://arxiv.org/pdf/2106.07178"""
+
+    sort_indices = np.argsort(scores)[::-1] # descending order
+    sorted_scores = scores[sort_indices]
+    #print(sorted_scores[:50])
+    sorted_labels = labels[sort_indices]
+    #print(sorted_labels[:50])
+
+    threshold = np.mean(sorted_labels == 1) 
+    print(f"calculated threshold: {threshold:.3f}")
+
+    num_samples = len(sorted_scores)
+    num_class_1 = int(num_samples * threshold)
+    predictions = np.zeros_like(sorted_labels)
+    predictions[0:num_class_1] = 1  # Mark top-k as anomalies
+    #predictions = 1-predictions
+
+    #print(predictions[:50])
+    #print(sorted_labels[:50])
+
     # Convert labels: 0=licit (normal), 1=illicit (anomaly)
     # Since in the dataset 0=licit and 1=illicit, we need to invert for evaluation
-    labels = 1 - labels  # Now 1=illicit (anomaly), 0=licit (normal)
+    #labels = 1 - labels  # Now 1=illicit (anomaly), 0=licit (normal)
 
     # Calculate evaluation metrics
-    predictions = (scores >= threshold).astype(int)
-    try:
-        auc = roc_auc_score(labels, scores)
-    except Exception as e:
-        print(f"Error calculating AUC: {e}")
-        auc = 0.0
+    #predictions = (scores >= threshold).astype(int)
+    #try:
+    #    auc = roc_auc_score(labels, scores)
+    #except Exception as e:
+    #    print(f"Error calculating AUC: {e}")
+    #    auc = 0.0
 
-    accuracy = accuracy_score(labels, predictions)
-    f1 = f1_score(labels, predictions)
-    precision = precision_score(labels, predictions)
-    recall = recall_score(labels, predictions)
+    accuracy = accuracy_score(sorted_labels, predictions)
+    f1 = f1_score(sorted_labels, predictions)
+    precision = precision_score(sorted_labels, predictions)
+    recall = recall_score(sorted_labels, predictions)
+    classification_report_output = classification_report(sorted_labels, predictions)
     classification_report_str = classification_report(
-        labels, predictions, output_dict=True
+        sorted_labels, predictions, output_dict=True
     )
     avg_loss = np.mean(all_losses)
 
     metrics = {
-        "auc": float(auc),
+        #"auc": float(auc),
         "accuracy": float(accuracy),
         "f1": float(f1),
         "precision": float(precision),
@@ -503,14 +526,14 @@ def test_model(
 
     # Print metrics
     print("\nTest Metrics:")
-    print(f"AUC: {metrics['auc']:.3f}")
+    #print(f"AUC: {metrics['auc']:.3f}")
     print(f"Accuracy: {metrics['accuracy']:.3f}")
     print(f"F1: {metrics['f1']:.3f}")
     print(f"Precision: {metrics['precision']:.3f}")
     print(f"Recall: {metrics['recall']:.3f}")
     print(f"Loss: {metrics['loss']:.3e}")
     print("\nClassification Report:")
-    print(classification_report_str)
+    print(classification_report_output)
 
     # Save metrics
     # timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
