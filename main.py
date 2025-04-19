@@ -90,8 +90,7 @@ def create_model(data, config=None) -> Tuple[DOMINANTAugmented, torch.device]:
 
     model = DOMINANTAugmented(
         num_layers=config["num_layers"],
-        hidden_dim=config["hidden_dim"],
-        num_heads=config["num_heads"],
+        hid_dim=config["hidden_dim"],
         dropout=config["dropout"],
         backbone=config["backbone"],
         use_interpolation=config["use_interpolation"],
