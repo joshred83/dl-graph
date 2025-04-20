@@ -27,6 +27,9 @@ import argparse
 import yaml
 import warnings
 
+from pygod.models import DOMINANT
+
+
 
 def load_dataset(root=None, 
         force_reload=False,
@@ -450,7 +453,7 @@ def test_model(
                     s[:batch_size, :],
                     s_hat[:batch_size],
                 )
-
+            print(loss_matrix[:10])
             # Get batch metrics
             batch_loss = torch.mean(loss_matrix).item()
             batch_scores = loss_matrix.cpu().numpy()
