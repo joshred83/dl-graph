@@ -29,13 +29,16 @@ import yaml
 import warnings
 from pygod.detector import DOMINANT
 from src.loaders import neighbor_loader
+from src.backbone import HybridGCNGATBackbone, GATBackbone
+from torch_geometric.nn import GCN
+
 
 def load_dataset(root=None, 
         force_reload=False,
         use_aggregated=True,
         use_temporal=False,
         t=None,
-        summarize=False):
+        summarize=False, mask="train"):
     """
     Load the EllipticBitcoinDataset
 
@@ -54,7 +57,29 @@ def load_dataset(root=None,
         use_temporal=use_temporal,
         t=t,
         summarize=summarize)
-    return data
+    
+    if mask is None:
+        return data
+    
+    """input_nodes = data.train_mask if use_train_mask else data.test_mask
+    # data already implements the train/test split
+
+    # Create a NeighborLoader for the dataset
+    loader = NeighborLoader(
+        data,
+        num_neighbors=num_neighbors,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        input_nodes=input_nodes,
+    )"""
+
+    assert (mask == 'train' or mask == 'test'), "if mask is not None, must be 'train' or 'test'"
+    if mask == "train":
+        input_nodes= data.train_mask
+    elif mask == "test":
+        input_nodes= data.test_mask
+    return data, input_nodes
 
 def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
     """Create the DOMINANT model and move it to the appropriate device.
@@ -67,11 +92,43 @@ def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
         device: The device (CPU or GPU) on which the model is located.
     """
 
+    model_params = {
+        'hid_dim': config.get('hid_dim', 64),
+        'num_layers': config.get('num_layers', 4),
+        'dropout': config.get('dropout', 0.0),
+        'weight_decay': config.get('weight_decay', 0.0),
+        'act': config.get('act', F.relu),
+        'sigmoid_s': config.get('sigmoid_s', False),
+        'contamination': config.get('contamination', 0.1),
+        'lr': config.get('lr', 0.001),
+        'epoch': config.get('epoch', 25),
+        'gpu': config.get('gpu', -1),
+        'batch_size': config.get('batch_size', 0),
+        'num_neigh': config.get('num_neigh', -1),
+        'weight': config.get('weight', 0.5),
+        'verbose': config.get('verbose', 1),
+    }
+
+    backbone = config.get("backbone", "gcn")
+    assert backbone in [
+            'gcn',
+            'gat',
+            'hybrid',
+        ], "Backbone must be one of ['gcn', 'gat', 'hybrid']"
+
+    match backbone:
+        case 'gcn':
+            model_params['backbone'] = GCN
+        case 'gat':
+            model_params['backbone'] = GATBackbone
+        case 'hybrid':
+            model_params['backbone'] = HybridGCNGATBackbone
+
+    print(f"creating model with {model_params}")
+
     # Create the model
     model = DOMINANT(
-        batch_size=512,
-        epoch=50,
-        verbose=2
+        **model_params
     )
 
     model.save_emb = True
@@ -84,7 +141,7 @@ def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
 def _create_loader(
     data: EllipticBitcoinDataset,
     num_workers=4,
-    batch_size=8192,
+    batch_size=8196,
     num_neighbors=[10, 10],
     use_train_mask=True,
 ) -> NeighborLoader:
@@ -125,6 +182,8 @@ def get_data_from_loader(loader:NeighborLoader, device='cpu') -> Data:
         edge_index=mydata.edge_index,
         y=mydata.y if hasattr(mydata, 'y') else None
     )
+    print("data loaded from loader:")
+    print(pyg_data)
     return pyg_data
 
 
@@ -181,7 +240,6 @@ def calculate_metrics(model:DOMINANT, pyg_data:Data, output_directory="./outputs
         class_report_str = classification_report(labels, predicted_labels, output_dict=True)
 
         roc_auc = roc_auc_score(labels, predicted_probs)
-
 
         print(f'ROC AUC: {roc_auc:.4f}')
         print(f"Classification Report:\n {class_report}")
@@ -246,37 +304,138 @@ def train_test_transfer_learning(
         else:
             print(f" Unknown classifier type '{classifier_type}'. Skipping")  
 
-def main(config=None):
+def main(config_path=None):
 
-    if config is None:
-        config = {
-            "classifiers": ["rf", "mlp"],
-            "save_dir": "saved_models"
-        }
+    config = load_config(config_path)
 
-    dataset = load_dataset()
+    dataset, input_nodes = load_dataset(
+        mask="train",
+        use_aggregated=config["data"]["use_aggregated"],
+        use_temporal=config["data"]["use_temporal"]
+    )
+
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     print(f"Timestamp: {timestamp}")
 
-    loader = make_loader(data=dataset, loader_type='neighbor', batch_size=8196)
-
+    loader = make_loader(
+            data=dataset, 
+            loader_type='neighbor', 
+            batch_size=config["data"]["batch_size"], 
+            input_nodes=input_nodes,
+        )
+    
     train_data = get_data_from_loader(loader)
 
-    mymodel = create_model(config=config)
+    mymodel = create_model(config=config["model"])
 
-    trained_model = train_model(mymodel, train_data, output_directory=config["save_dir"], timestamp=timestamp)
+    trained_model = train_model(
+            mymodel, 
+            train_data, 
+            output_directory=config["training"]["save_dir"], 
+            save_embeddings=config["training"]["save_embeddings"],
+            timestamp=timestamp
+        )
+    
+    dataset, input_nodes = load_dataset(
+        mask="test",
+        use_aggregated=config["data"]["use_aggregated"],
+        use_temporal=config["data"]["use_temporal"]
+    )
 
+    loader = make_loader(
+            data=dataset, 
+            loader_type='neighbor', 
+            batch_size=config["data"]["batch_size"], 
+            input_nodes=input_nodes,
+
+        )    
+    
     test_data = get_data_from_loader(loader)
 
-    test_model(model=trained_model, data=test_data, output_directory=config["save_dir"], timestamp=timestamp)
-
+    test_metrics = test_model(
+            model=trained_model, 
+            data=test_data, 
+            output_directory=config["training"]["save_dir"], 
+            timestamp=timestamp
+        )
+    
     train_test_transfer_learning(
         model=trained_model, 
-        data=train_data, 
-
-        config=config,
+        data=test_data, 
+        config={
+            "classifiers": config["classifiers"],
+            "save_dir": config["training"]["save_dir"]
+        },
         timestamp=timestamp
     )
 
+
+def load_config(config_path=None):
+    """
+    Load configuration from a YAML file and merge it with default config
+    
+    Args:
+        config_path: Path to the YAML configuration file
+        
+    Returns:
+        dict: Merged configuration dictionary
+    """
+    # Default configuration
+    default_config = {
+        "model": {
+            "hid_dim": 64,
+            "num_layers": 3,
+            "dropout": 0.0,
+            "weight_decay": 0.0,
+            "contamination": 0.1,
+            "backbone": "gcn",
+            "lr": 0.004,
+            "epoch": 25,
+            "gpu": -1,  
+            "batch_size": 0,
+            "num_neigh": 10,
+            "weight": 0.5,
+            "verbose": 2,
+        },
+        "data": {
+            "use_aggregated": False,
+            "use_temporal": False,
+            "batch_size": 16_000
+        },
+        "training": {
+            "save_embeddings": True,
+            "save_dir": "./saved_models",
+        },
+        "classifiers": ["rf", "mlp"],
+    }
+    
+    # Load configuration from YAML if provided
+    if config_path is not None:
+        try:
+            with open(config_path, 'r') as file:
+                yaml_config = yaml.safe_load(file)
+                
+            # Update default config with values from YAML
+            def update_nested_dict(d, u):
+                for k, v in u.items():
+                    if isinstance(v, dict) and k in d and isinstance(d[k], dict):
+                        update_nested_dict(d[k], v)
+                    else:
+                        d[k] = v
+                        
+            update_nested_dict(default_config, yaml_config)
+            print(f"Loaded configuration from {config_path}")
+        except Exception as e:
+            warnings.warn(f"Error loading config from {config_path}: {e}. Using default configuration.")
+    
+    print("Configuration:", json.dumps(default_config, indent=2, default=str))
+    return default_config
+
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Train and evaluate DOMINANT model')
+    parser.add_argument('--config', type=str, default=None, help='Path to the YAML configuration file')
+    args = parser.parse_args()
+    
+    main(config_path=args.config)
