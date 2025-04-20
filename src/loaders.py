@@ -1,13 +1,12 @@
 from torch_geometric.datasets import EllipticBitcoinDataset, EllipticBitcoinTemporalDataset
 from torch_geometric.loader import NeighborLoader, ClusterLoader, ClusterData
-import torch
-import torch_geometric as pyg
-from torch_geometric import transforms
-from src.utils import summarize_graph
+
+from torch_geometric.loader import ClusterData, ClusterLoader
+
 import inspect
 import warnings
-from torch_geometric.loader import ClusterData, ClusterLoader
 import argparse
+from src.utils import summarize_graph, _merge_defaults
 
 def load_elliptic(
     root=None, 
@@ -73,9 +72,9 @@ def load_elliptic(
         dataset = EllipticBitcoinTemporalDataset(root=root, force_reload=force_reload, t=t)
     else:
         dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
+
     data = dataset[0]
 
-    
     if use_aggregated:
         # data already contains aggregated features
         pass
@@ -122,7 +121,7 @@ def neighbor_loader(data, **kwargs):
     """
 
     # Some defaults. They can be overridden by kwargs. 
-    defaults = dict(batch_size=2048, shuffle=True, num_neighbors=[10, 10], input_nodes=None)
+    defaults = dict(batch_size=2048, shuffle=False, num_neighbors=[10, 10], input_nodes=None)
 
     # make sure we have the defaults, but override them if specified in wargs
     kwargs = _merge_defaults(kwargs, defaults)
@@ -136,7 +135,7 @@ def neighbor_loader(data, **kwargs):
     return NeighborLoader(data, **kwargs)
 
 
-def cluster_loader(data, **kwargs):
+def cluster_loader(data, _raise=True, **kwargs):
     """
     data   : a PyG Data graph
     kwargs : dict containing any args for ClusterData or ClusterLoader
@@ -144,7 +143,9 @@ def cluster_loader(data, **kwargs):
     Returns:
        loader: A data loader for the graph data object.
     """
-    # 1) grab everything
+    if _raise:
+        raise NotImplementedError("This algorithm throws SegFaults. If you want to try anyway, set _raise=False") 
+    # grab everything
     kwargs = {} if kwargs is None else dict(kwargs)
 
     # splits up kwargs assigning them to the relevant signature
@@ -160,7 +161,7 @@ def cluster_loader(data, **kwargs):
 
     # Some defaults. They can be overridden by kwargs. 
     cluster_defaults = dict(num_parts=1500, recursive=False, save_dir="../data/elliptic")
-    loader_defaults  = dict(batch_size=20, shuffle=True, num_workers=12)
+    loader_defaults  = dict(batch_size=20, shuffle=False, num_workers=12)
 
     # make sure we have the defaults, but override them if specified in wargs
     cluster_kwargs = _merge_defaults(cluster_kwargs, cluster_defaults)
@@ -176,27 +177,17 @@ def cluster_loader(data, **kwargs):
     # return the loader
     return ClusterLoader(clustered, **loader_kwargs)
 
-def _merge_defaults(kwargs, defaults):
-    """
-    Allows for defaults to be set on kwarg-type arguments. 
-    Similar to functools.partial. 
-    Merge defaults into kwargs, without overwriting existing keys.
-    If kwargs is None, start from an empty dict.
-    """
-    if kwargs is None:
-        kwargs = {}
-    for k, v in defaults.items():
-        kwargs.setdefault(k, v)
-    return kwargs
 
 
 if __name__ == "__main__":
+    from warnings import warn
+    warn("\033[91mI want to get rid of the argparse interface. Import the functions from other scripts instead.\033[0m" )
+    warn("\033[91mReserve the main block for minimal test cases that don't run if the functions are imported.\033[0m" )
     parser = argparse.ArgumentParser(description="Run data loader with cluster or neighbor loader.")
     parser.add_argument("--cluster", action="store_true", help="Use cluster loader if set to True.")
     args = parser.parse_args()
 
-    
-    
+
     # Example usage
     data = load_elliptic(use_temporal=True, t=2, summarize=True)
 
