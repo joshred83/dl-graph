@@ -110,7 +110,11 @@ def make_loader(data, loader_type='neighbor', **kwargs):
 
         return neighbor_loader(data, **kwargs)
 
-
+# NeighborLoader()data: Data | HeteroData | Tuple[FeatureStore, GraphStore], 
+# num_neighbors: List[int] | Dict[EdgeType, List[int]], input_nodes: InputNodes = None, 
+# input_time: OptTensor = None, replace: bool = False, subgraph_type: SubgraphType | str = 'directional', disjoint: bool = False, 
+# temporal_strategy: str = 'uniform', time_attr: str | None = None, weight_attr: str | None = None, transform: ((...) -> Any) | None = None, 
+# transform_sampler_output: ((...) -> Any) | None = None, is_sorted: bool = False, filter_per_worker: bool | None = None, neighbor_sampler: NeighborSampler | None = None, directed: bool = True, **kwargs: Any) -> NeighborLoader
 def neighbor_loader(data, **kwargs):
     """
     data   : a PyG Data graph
@@ -135,47 +139,47 @@ def neighbor_loader(data, **kwargs):
     return NeighborLoader(data, **kwargs)
 
 
-def cluster_loader(data, _raise=True, **kwargs):
-    """
-    data   : a PyG Data graph
-    kwargs : dict containing any args for ClusterData or ClusterLoader
+# def cluster_loader(data, _raise=True, **kwargs):
+#     """
+#     data   : a PyG Data graph
+#     kwargs : dict containing any args for ClusterData or ClusterLoader
 
-    Returns:
-       loader: A data loader for the graph data object.
-    """
-    if _raise:
-        raise NotImplementedError("This algorithm throws SegFaults. If you want to try anyway, set _raise=False") 
-    # grab everything
-    kwargs = {} if kwargs is None else dict(kwargs)
+#     Returns:
+#        loader: A data loader for the graph data object.
+#     """
+#     if _raise:
+#         raise NotImplementedError("This algorithm throws SegFaults. If you want to try anyway, set _raise=False") 
+#     # grab everything
+#     kwargs = {} if kwargs is None else dict(kwargs)
 
-    # splits up kwargs assigning them to the relevant signature
-    # could pose a problem if the same kwarg is used in both signatures
+#     # splits up kwargs assigning them to the relevant signature
+#     # could pose a problem if the same kwarg is used in both signatures
 
-    cd_sig = inspect.signature(ClusterData.__init__)
-    cl_sig = inspect.signature(ClusterLoader.__init__)
-    cd_params = set(cd_sig.parameters) - {"self"}        # drop 'self'
-    cl_params = set(cl_sig.parameters) - {"self", "clustered"}  # drop 'self' & first positional
+#     cd_sig = inspect.signature(ClusterData.__init__)
+#     cl_sig = inspect.signature(ClusterLoader.__init__)
+#     cd_params = set(cd_sig.parameters) - {"self"}        # drop 'self'
+#     cl_params = set(cl_sig.parameters) - {"self", "clustered"}  # drop 'self' & first positional
 
-    cluster_kwargs = {k: kwargs.pop(k) for k in list(kwargs) if k in cd_params}
-    loader_kwargs  = {k: kwargs.pop(k) for k in list(kwargs) if k in cl_params}
+#     cluster_kwargs = {k: kwargs.pop(k) for k in list(kwargs) if k in cd_params}
+#     loader_kwargs  = {k: kwargs.pop(k) for k in list(kwargs) if k in cl_params}
 
-    # Some defaults. They can be overridden by kwargs. 
-    cluster_defaults = dict(num_parts=1500, recursive=False, save_dir="../data/elliptic")
-    loader_defaults  = dict(batch_size=20, shuffle=False, num_workers=12)
+#     # Some defaults. They can be overridden by kwargs. 
+#     cluster_defaults = dict(num_parts=1500, recursive=False, save_dir="../data/elliptic")
+#     loader_defaults  = dict(batch_size=20, shuffle=False, num_workers=12)
 
-    # make sure we have the defaults, but override them if specified in wargs
-    cluster_kwargs = _merge_defaults(cluster_kwargs, cluster_defaults)
-    loader_kwargs  = _merge_defaults(loader_kwargs,  loader_defaults)
+#     # make sure we have the defaults, but override them if specified in wargs
+#     cluster_kwargs = _merge_defaults(cluster_kwargs, cluster_defaults)
+#     loader_kwargs  = _merge_defaults(loader_kwargs,  loader_defaults)
 
-    # if any kwargs are left over, warn about them...and that's it.
+#     # if any kwargs are left over, warn about them...and that's it.
 
-    if kwargs:
-        warnings.warn(f"cluster_loader: ignoring unexpected args {list(kwargs)}")
+#     if kwargs:
+#         warnings.warn(f"cluster_loader: ignoring unexpected args {list(kwargs)}")
 
-    # partition into clusters
-    clustered = ClusterData(data, **cluster_kwargs)
-    # return the loader
-    return ClusterLoader(clustered, **loader_kwargs)
+#     # partition into clusters
+#     clustered = ClusterData(data, **cluster_kwargs)
+#     # return the loader
+#     return ClusterLoader(clustered, **loader_kwargs)
 
 
 

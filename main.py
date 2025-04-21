@@ -27,7 +27,7 @@ import argparse
 import yaml
 import warnings
 
-from pygod.models import DOMINANT
+# from pygod.models import DOMINANT
 
 
 
