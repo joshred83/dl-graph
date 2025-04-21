@@ -31,6 +31,9 @@ from pygod.detector import DOMINANT
 from src.loaders import neighbor_loader
 from src.backbone import HybridGCNGATBackbone, GATBackbone
 from torch_geometric.nn import GCN
+from src.transforms import Interpolator, Perturber
+from torch_geometric.transforms import Compose
+
 
 
 def load_dataset(root=None, 
@@ -304,6 +307,26 @@ def train_test_transfer_learning(
         else:
             print(f" Unknown classifier type '{classifier_type}'. Skipping")  
 
+def transform_data(data:Data, perturb:bool=False, interpolate:bool=False) -> Data:
+    if not (perturb or interpolate):
+        return data
+    
+    if (perturb or interpolate):
+        pipeline = []
+
+        if perturb:
+            print("Using perturbation")
+            p = Perturber()
+            pipeline.append(p)
+        if interpolate:
+            print("Using interpolation")
+            i = Interpolator(interpolation_rate=0.1)
+            pipeline.append(i)
+
+        transform = Compose(pipeline)
+    
+    return transform(data)
+
 def main(config_path=None):
 
     config = load_config(config_path)
@@ -325,6 +348,9 @@ def main(config_path=None):
         )
     
     train_data = get_data_from_loader(loader)
+
+    train_data = transform_data(train_data, perturb=config['transform']['perturb'], 
+                                interpolate=config['transform']['interpolate'])
 
     mymodel = create_model(config=config["model"])
 
@@ -407,6 +433,10 @@ def load_config(config_path=None):
             "save_dir": "./saved_models",
         },
         "classifiers": ["rf", "mlp"],
+        "transform":{
+            "perturb": True,
+            "interpolate": False,
+        }
     }
     
     # Load configuration from YAML if provided

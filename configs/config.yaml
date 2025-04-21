@@ -4,7 +4,7 @@ model:
   dropout: 0.1
   weight_decay: 0.0
   contamination: 0.065
-  backbone: gat
+  backbone: hybrid
   lr: 0.001
   epoch: 25
   gpu: -1
@@ -16,7 +16,7 @@ model:
 data:
   use_aggregated: false
   use_temporal: false
-  batch_size: 16000 # this is what is loaded by neighborloader
+  batch_size: 10_000 # this is what is loaded by neighborloader
 
 training:
   save_embeddings: true
@@ -25,3 +25,7 @@ training:
 classifiers:
   - rf
   - mlp
+
+transform:
+  perturb: true
+  interpolate: false
