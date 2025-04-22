@@ -377,3 +377,150 @@ class GATBackbone(nn.Module):
         
         # Re-apply our custom initialization
         self._init_parameters()
+
+class GCNSkipBackbone(nn.Module):
+    """
+    Graph Convolutional Network backbone with skip connections.
+    
+    This backbone uses GCN layers with skip (residual) connections to improve
+    gradient flow through deep networks. Skip connections are added between
+    layers with compatible dimensions.
+    
+    Parameters
+    ----------
+    in_channels : int
+        Number of input features.
+    hidden_channels : int
+        Number of hidden features.
+    out_channels : int
+        Number of output features.
+    num_layers : int
+        Number of GCN layers.
+    dropout : float, optional
+        Dropout rate. Default: 0.0.
+    act : callable, optional
+        Activation function. Default: F.relu.
+    use_norm : bool, optional
+        Whether to use layer normalization. Default: True.
+    skip_freq : int, optional
+        Frequency of skip connections. A value of 1 means every layer has a skip
+        connection to its previous layer, 2 means every second layer, etc.
+        Default: 1.
+    eps : float, optional
+        Small epsilon to prevent numerical issues. Default: 1e-5.
+    """
+    def __init__(
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        num_layers,
+        dropout=0.0,
+        act=F.relu,
+        use_norm=True,
+        skip_freq=1,
+        eps=1e-5,
+        **kwargs
+    ):
+        super(GCNSkipBackbone, self).__init__()
+        
+        # Store parameters
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.act = act
+        self.use_norm = use_norm
+        self.skip_freq = skip_freq
+        self.eps = eps
+        
+        # Create layers
+        self.convs = nn.ModuleList()
+
+        # Create layer norm list if using layer normalization
+        if use_norm:
+            self.norms = nn.ModuleList()
+        
+        # First layer (input to hidden)
+        self.convs.append(GCNConv(in_channels, hidden_channels))
+        if use_norm:
+            self.norms.append(LayerNorm(hidden_channels))
+        
+        # Hidden layers - using same dimensions throughout for simplicity
+        for i in range(num_layers - 2):
+            self.convs.append(GCNConv(hidden_channels, hidden_channels))
+            if use_norm:
+                self.norms.append(LayerNorm(hidden_channels))
+        
+        # Output layer
+        self.convs.append(GCNConv(hidden_channels, out_channels))
+        if use_norm:
+            self.norms.append(LayerNorm(out_channels))
+        
+        # Initialize weights to improve stability
+        self._init_parameters()
+    
+    def _init_parameters(self):
+        """Initialize parameters with careful weights to improve stability."""
+        # note that the GCNConv objects ALREADY implement Xavier, i.e. Glorot initialization
+        # this is just being extra-paranoid for stability/gradient flow.
+        for conv in self.convs[:-1]:
+            if hasattr(conv, 'lin'):
+                nn.init.xavier_normal_(conv.lin.weight, gain=0.5)
+                if conv.lin.bias is not None:
+                    nn.init.zeros_(conv.lin.bias)
+        
+        # Initialize final layer conservatively - see above GAT pipeline for justification/discussion.
+        if hasattr(self.convs[-1], 'lin'):
+            nn.init.xavier_normal_(self.convs[-1].lin.weight, gain=0.1)
+            if self.convs[-1].lin.bias is not None:
+                nn.init.zeros_(self.convs[-1].lin.bias)
+    
+    def forward(self, x, edge_index):
+        # Store intermediate outputs for skip connections
+        skip_outputs = []
+        
+        for i, conv in enumerate(self.convs):
+            x_new = conv(x, edge_index)
+            
+            # Check for numerical issues.
+            x_new = torch.nan_to_num(x_new, nan=0.0, posinf=self.eps, neginf=-self.eps)
+            
+            # Apply layer normalization if enabled
+            if self.use_norm and i < len(self.norms):
+                x_new = self.norms[i](x_new)
+            
+            # Add skip connections except for the first layer
+            if i > 0:
+                # Determine if this layer should have skip connections
+                # based on skip_freq - obviously i % 1 means apply every layer
+                should_add_skip = (i % self.skip_freq == 0)
+                
+                if should_add_skip:
+                    if x.size() == x_new.size(): # just the easiest way to do it... Only if exact size lines up.
+                        # in other words, the skip connections will only be between the hidden layers.
+                        x_new = x_new + x
+                    
+            # Apply activation and dropout for all except final layer
+            if i < len(self.convs) - 1:
+                x_new = self.act(x_new)
+                x_new = F.dropout(x_new, p=self.dropout, training=self.training)
+            
+            x = x_new
+            
+            skip_outputs.append(x.clone())
+        
+        return x
+    
+    def reset_parameters(self):
+        """Reset parameters of all layers."""
+        for conv in self.convs:
+            conv.reset_parameters()
+        
+        if self.use_norm:
+            for norm in self.norms:
+                norm.reset_parameters()
+        
+        # Re-apply custom initialization
+        self._init_parameters()

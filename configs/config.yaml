@@ -4,7 +4,7 @@ model:
   dropout: 0.1
   weight_decay: 0.0
   contamination: 0.065
-  backbone: hybrid
+  backbone: gcn_skip
   lr: 0.001
   epoch: 25
   gpu: -1

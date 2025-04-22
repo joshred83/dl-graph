@@ -29,7 +29,7 @@ import yaml
 import warnings
 from pygod.detector import DOMINANT
 from src.loaders import neighbor_loader
-from src.backbone import HybridGCNGATBackbone, GATBackbone
+from src.backbone import HybridGCNGATBackbone, GATBackbone, GCNSkipBackbone
 from torch_geometric.nn import GCN
 from src.transforms import Interpolator, Perturber
 from torch_geometric.transforms import Compose
@@ -126,6 +126,8 @@ def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
             model_params['backbone'] = GATBackbone
         case 'hybrid':
             model_params['backbone'] = HybridGCNGATBackbone
+        case 'gcn_skip':
+            model_params['backbone'] = GCNSkipBackbone
 
     print(f"creating model with {model_params}")
 
