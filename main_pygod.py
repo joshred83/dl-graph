@@ -420,7 +420,7 @@ def load_config(config_path=None):
             "lr": 0.004,
             "epoch": 25,
             "gpu": -1,  
-            "batch_size": 0,
+            "batch_size": 2056,
             "num_neigh": 10,
             "weight": 0.5,
             "verbose": 2,
@@ -428,7 +428,7 @@ def load_config(config_path=None):
         "data": {
             "use_aggregated": False,
             "use_temporal": False,
-            "batch_size": 16_000
+            "batch_size": 2056*16,
         },
         "training": {
             "save_embeddings": True,

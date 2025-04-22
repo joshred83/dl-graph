@@ -796,7 +796,12 @@ def main(config=None):
             num_neighbors=config["num_neighbors"],
             use_train_mask=True,
         )
-
+        test_loader = create_loader(
+            data,
+            batch_size=config["batch_size"],
+            num_neighbors=config["num_neighbors"],
+            use_train_mask=False,
+        )
         model, training_metrics = train_model(
             model,
             train_loader,
