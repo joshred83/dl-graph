@@ -1,7 +1,7 @@
 model:
   hid_dim: 512
   num_layers: 6
-  dropout: 0.1
+  dropout: 0.2
   weight_decay: 0.0
   contamination: 0.1
   backbone: "hybrid"
