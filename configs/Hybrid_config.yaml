@@ -15,7 +15,7 @@ model:
 
 data:
   use_aggregated: true
-  use_temporal: true
+  use_temporal: false
   batch_size: 10_000 # this is what is loaded by neighborloader
 
 training:
