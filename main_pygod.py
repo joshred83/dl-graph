@@ -197,7 +197,7 @@ def train_model(
         data:Data,
         device='cpu',
         output_directory="./outputs",
-        save_embeddings=True,
+        save_embeddings=False,
         timestamp:str=None) -> DOMINANT:
     print("training model...")
     os.makedirs(output_directory, exist_ok=True)
