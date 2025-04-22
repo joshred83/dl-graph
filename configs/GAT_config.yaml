@@ -6,7 +6,7 @@ model:
   contamination: 0.1
   backbone: "gat"
   lr: 0.005
-  epoch: 10
+  epoch: 30
   gpu: -1
   batch_size: 2048 # use the entire batch
   num_neigh: 15
