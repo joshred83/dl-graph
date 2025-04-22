@@ -1,0 +1,31 @@
+model:
+  hid_dim: 1024
+  num_layers: 6
+  dropout: 0.2
+  weight_decay: 0.0
+  contamination: 0.1
+  backbone: "gat"
+  lr: 0.005
+  epoch: 30
+  gpu: -1
+  batch_size: 2048 # use the entire batch
+  num_neigh: 15
+  weight: 0.5
+  verbose: 2
+
+data:
+  use_aggregated: true
+  use_temporal: false
+  batch_size: 10_000 # this is what is loaded by neighborloader
+
+training:
+  save_embeddings: false
+  save_dir: ./saved_models
+
+classifiers:
+  - rf
+  - mlp
+
+transform:
+  perturb: false
+  interpolate: false
