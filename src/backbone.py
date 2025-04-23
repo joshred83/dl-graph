@@ -632,14 +632,14 @@ class GraphSAGEBackbone(nn.Module):
         for conv in self.convs:
             # Initialize linear layers in SAGEConv
             if hasattr(conv, 'lin_l'):
-                nn.init.xavier_normal_(conv.lin_rel.weight, gain=0.5)
-                if conv.lin_rel.bias is not None:
-                    nn.init.zeros_(conv.lin_rel.bias)
+                nn.init.xavier_normal_(conv.lin_l.weight, gain=0.5)
+                if conv.lin_l.bias is not None:
+                    nn.init.zeros_(conv.lin_l.bias)
             
             if hasattr(conv, 'lin_r'):
-                nn.init.xavier_normal_(conv.lin_root.weight, gain=0.5)
-                if conv.lin_root.bias is not None:
-                    nn.init.zeros_(conv.lin_root.bias)
+                nn.init.xavier_normal_(conv.lin_r.weight, gain=0.5)
+                if conv.lin_r.bias is not None:
+                    nn.init.zeros_(conv.lin_r.bias)
     
     def forward(self, x, edge_index):
         # Process through layers
