@@ -117,7 +117,9 @@ def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
             'gcn',
             'gat',
             'hybrid',
-        ], "Backbone must be one of ['gcn', 'gat', 'hybrid']"
+            'gcn_skip',
+            'graphsage'
+        ], "Backbone must be one of ['gcn', 'gat', 'hybrid', 'gcn_skip', 'graphsage']"
 
     match backbone:
         case 'gcn':
