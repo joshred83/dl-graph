@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, GATConv, GATv2Conv, LayerNorm
+from torch_geometric.nn import GCNConv, GATConv, GATv2Conv, LayerNorm, SAGEConv
 
 
 class HybridGCNGATModel(nn.Module):
@@ -510,6 +510,158 @@ class GCNSkipBackbone(nn.Module):
             x = x_new
             
             skip_outputs.append(x.clone())
+        
+        return x
+    
+    def reset_parameters(self):
+        """Reset parameters of all layers."""
+        for conv in self.convs:
+            conv.reset_parameters()
+        
+        if self.use_norm:
+            for norm in self.norms:
+                norm.reset_parameters()
+        
+        # Re-apply custom initialization
+        self._init_parameters()
+
+
+class GraphSAGEBackbone(nn.Module):
+    """
+    GraphSAGE backbone for DOMINANT anomaly detection.
+    
+    This backbone implements the GraphSAGE architecture (Hamilton et al., 2017)
+    with configurable aggregation function and normalization options.
+    
+    Parameters
+    ----------
+    in_channels : int
+        Number of input features.
+    hidden_channels : int
+        Number of hidden features.
+    out_channels : int
+        Number of output features.
+    num_layers : int
+        Number of layers.
+    dropout : float, optional
+        Dropout rate. Default: 0.0.
+    act : callable, optional
+        Activation function. Default: F.relu.
+    use_norm : bool, optional
+        Whether to use layer normalization. Default: True.
+    aggr : str, optional
+        Aggregation function: "mean", "max", or "sum". Default: "mean".
+    use_residual : bool, optional
+        Whether to use residual, i.e., skip connections. Default: True.
+    normalize : bool, optional
+        Whether to normalize the output in each SAGEConv layer. Default: True.
+    """
+    def __init__(
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        num_layers,
+        dropout=0.0,
+        act=F.relu,
+        use_norm=True,
+        aggr="mean",
+        use_residual=True,
+        normalize=True,
+        **kwargs
+    ):
+        super(GraphSAGEBackbone, self).__init__()
+        
+        # Store parameters
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.act = act
+        self.use_norm = use_norm
+        self.aggr = aggr
+        self.use_residual = use_residual
+        self.normalize = normalize
+        
+        # Create layers
+        self.convs = nn.ModuleList()
+        
+        if use_norm:
+            self.norms = nn.ModuleList()
+        
+        # First layer (input to hidden)
+        self.convs.append(SAGEConv(
+            in_channels, 
+            hidden_channels, 
+            normalize=normalize,
+            aggr=aggr
+        ))
+        
+        if use_norm:
+            self.norms.append(LayerNorm(hidden_channels))
+        
+        # Hidden layers
+        for i in range(num_layers - 2):
+            self.convs.append(SAGEConv(
+                hidden_channels, 
+                hidden_channels, 
+                normalize=normalize,
+                aggr=aggr
+            ))
+            
+            if use_norm:
+                self.norms.append(LayerNorm(hidden_channels))
+        
+        # Output layer
+        self.convs.append(SAGEConv(
+            hidden_channels, 
+            out_channels, 
+            normalize=normalize,
+            aggr=aggr
+        ))
+        
+        if use_norm:
+            self.norms.append(LayerNorm(out_channels))
+        
+        # Initialize weights for stability
+        self._init_parameters()
+    
+    def _init_parameters(self):
+        """Initialize parameters with careful weights to improve stability."""
+        for conv in self.convs:
+            # Initialize linear layers in SAGEConv
+            if hasattr(conv, 'lin_l'):
+                nn.init.xavier_normal_(conv.lin_rel.weight, gain=0.5)
+                if conv.lin_rel.bias is not None:
+                    nn.init.zeros_(conv.lin_rel.bias)
+            
+            if hasattr(conv, 'lin_r'):
+                nn.init.xavier_normal_(conv.lin_root.weight, gain=0.5)
+                if conv.lin_root.bias is not None:
+                    nn.init.zeros_(conv.lin_root.bias)
+    
+    def forward(self, x, edge_index):
+        # Process through layers
+        for i, conv in enumerate(self.convs):
+            # Store the input for potential residual connection
+            x_in = x
+            
+            # Apply GraphSAGE convolution
+            x = conv(x, edge_index)
+            
+            # Apply normalization if enabled
+            if self.use_norm and i < len(self.norms):
+                x = self.norms[i](x)
+            
+            # Apply activation and dropout for all except final layer
+            if i < self.num_layers - 1:
+                x = self.act(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+                
+                # Add residual connection if dimensions match and residual is enabled
+                if self.use_residual and x_in.size() == x.size():
+                    x = x + x_in
         
         return x
     
