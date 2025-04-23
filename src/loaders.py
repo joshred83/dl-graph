@@ -1,7 +1,7 @@
 from torch_geometric.datasets import EllipticBitcoinDataset, EllipticBitcoinTemporalDataset
-from torch_geometric.loader import NeighborLoader, ClusterLoader, ClusterData
+from torch_geometric.loader import NeighborLoader, ClusterLoader, ClusterData, DataLoader
 
-from torch_geometric.loader import ClusterData, ClusterLoader
+
 
 import inspect
 import warnings
@@ -127,9 +127,13 @@ def neighbor_loader(data, **kwargs):
     kwargs = _merge_defaults(kwargs, defaults)
 
     # if any kwargs are left over, warn about them...and that's it.
-
-    if kwargs:
-        warnings.warn(f"neighbor_loader: ignoring unexpected args {list(kwargs)}")
+    actual_kwargs = (set(inspect.signature(NeighborLoader.__init__).parameters) |
+                    set(inspect.signature(DataLoader.__init__).parameters))
+    actual_kwargs -= {"self", "data", "kwargs"}  # drop 'self' & first positional
+    wrong_kwargs = set(kwargs.keys()) - actual_kwargs
+    for k in wrong_kwargs:
+        warnings.warn(f"neighbor_loader: ignoring unexpected args: ** {k}:{kwargs[k]} **" )
+        kwargs.pop(k)
 
     # return the loader
     return NeighborLoader(data, **kwargs)
@@ -201,7 +205,7 @@ if __name__ == "__main__":
         print("Using Neighbor Loader:")
 
         # Note: The batch size and other parameters can be adjusted as needed.
-        loader = make_loader(data, loader_type='neighbor', batch_size=1024, shuffle=True,)
+        loader = make_loader(data, loader_type='neighbor', batch_size=1024, shuffle=True, test_warning="foo")
 
     for batch in loader:
         print(batch)

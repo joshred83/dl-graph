@@ -199,7 +199,7 @@ def train_model(
         data:Data,
         device='cpu',
         output_directory="./outputs",
-        save_embeddings=True,
+        save_embeddings=False,
         timestamp:str=None) -> DOMINANT:
     print("training model...")
     os.makedirs(output_directory, exist_ok=True)
@@ -422,7 +422,7 @@ def load_config(config_path=None):
             "lr": 0.004,
             "epoch": 25,
             "gpu": -1,  
-            "batch_size": 0,
+            "batch_size": 2056,
             "num_neigh": 10,
             "weight": 0.5,
             "verbose": 2,
@@ -430,7 +430,7 @@ def load_config(config_path=None):
         "data": {
             "use_aggregated": False,
             "use_temporal": False,
-            "batch_size": 16_000
+            "batch_size": 2056*16,
         },
         "training": {
             "save_embeddings": True,
