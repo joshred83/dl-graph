@@ -1,23 +1,23 @@
 model:
-  hid_dim: 512
-  num_layers: 6
+  hid_dim: 128
+  num_layers: 4
   dropout: 0.2
   weight_decay: 0.0
   contamination: 0.1
-  backbone: "hybrid"
+  backbone: "gcn"
   lr: 0.005
-  epoch: 30
+  epoch: 10
   gpu: -1
   batch_size: 2048 # use the entire batch
-  num_neigh: 10
+  num_neigh: 15
   weight: 0.5
   verbose: 2
 
 data:
   use_aggregated: true
-  use_temporal: false
+  use_temporal: true
   t:  0 # This selects the timestep batch when using temporal data
-  batch_size: 10_000 # this is what is loaded by neighborloader
+  batch_size: 4*2048 # this is what is loaded by neighborloader
 
 training:
   save_embeddings: false
