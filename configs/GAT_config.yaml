@@ -16,6 +16,8 @@ model:
 data:
   use_aggregated: true
   use_temporal: false
+  t:  0 # This selects the timestep batch when using temporal data
+
   batch_size: 10_000 # this is what is loaded by neighborloader
 
 training:
