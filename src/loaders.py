@@ -236,4 +236,5 @@ if __name__ == "__main__":
         test_warning="foo")
     
 
-[print(i) for i in loader]
+    [print(i) for i in loader]
+
