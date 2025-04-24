@@ -7,14 +7,16 @@ import inspect
 import warnings
 import argparse
 from src.utils import summarize_graph, _merge_defaults
-
+from src.local.elliptic import EllipticBitcoinDataset as LocalEllipticBitcoinDataset
+from src.local.elliptic_temporal import EllipticBitcoinTemporalDataset as LocalEllipticBitcoinTemporalDataset
 def load_elliptic(
     root=None, 
     force_reload=False,
     use_aggregated=False,
     use_temporal=False,
     t=None,
-    summarize=False
+    summarize=False,
+    local=False
 
 ):
     """
@@ -62,6 +64,14 @@ def load_elliptic(
     Returns:
         data: The loaded data object (a graph).
     """
+    if local:
+        # Use the local version of the dataset
+        EBD = LocalEllipticBitcoinDataset
+        EBDT = LocalEllipticBitcoinTemporalDataset
+    else:
+        # Use the PyG version of the dataset
+        EBD = EllipticBitcoinDataset
+        EBDT = EllipticBitcoinTemporalDataset
     if use_temporal and t is None:
         raise ValueError("Temporal data requires a time step (t) to be specified.")
     # default root to the data directory if not specified
@@ -69,18 +79,17 @@ def load_elliptic(
         root = "../data/elliptic"
 
     if use_temporal:
-        dataset = EllipticBitcoinTemporalDataset(root=root, force_reload=force_reload, t=t)
+        dataset = EBDT(root=root, force_reload=force_reload, t=t)
     else:
-        dataset = EllipticBitcoinDataset(root=root, force_reload=force_reload)
+        dataset = EBD(root=root, force_reload=force_reload)
 
     data = dataset[0]
 
     if use_aggregated:
-        # data already contains aggregated features
+        # data already contains aggregated features, no action needed
         pass
     else:
-        # Remove the aggregated features, correcting for the temporal case
-        # where the first feature is the time step
+        # Remove the aggregated features
         data.x = data.x[:, 0:93]
 
     if summarize:                    
@@ -110,6 +119,8 @@ def make_loader(data, loader_type='neighbor', **kwargs):
 
         return neighbor_loader(data, **kwargs)
 
+    else:   
+        raise ValueError(f"Unknown loader type: {loader_type}.")
 
 def neighbor_loader(data, **kwargs):
     """
@@ -123,7 +134,7 @@ def neighbor_loader(data, **kwargs):
     # Some defaults. They can be overridden by kwargs. 
     defaults = dict(batch_size=2048, shuffle=False, num_neighbors=[10, 10], input_nodes=None)
 
-    # make sure we have the defaults, but override them if specified in wargs
+    # make sure we have the defaults, but override them if specified in kwargs
     kwargs = _merge_defaults(kwargs, defaults)
 
     # if any kwargs are left over, warn about them...and that's it.
@@ -182,35 +193,47 @@ def cluster_loader(data, _raise=True, **kwargs):
     return ClusterLoader(clustered, **loader_kwargs)
 
 
-
 if __name__ == "__main__":
     from warnings import warn
-    warn("\033[91mI want to get rid of the argparse interface. Import the functions from other scripts instead.\033[0m" )
-    warn("\033[91mReserve the main block for minimal test cases that don't run if the functions are imported.\033[0m" )
-    parser = argparse.ArgumentParser(description="Run data loader with cluster or neighbor loader.")
-    parser.add_argument("--cluster", action="store_true", help="Use cluster loader if set to True.")
-    args = parser.parse_args()
 
+    # Minimal tests for Local datasets
+    load_elliptic_test_cases = [
+        ("force_reload", {"force_reload": True}),
+        ("static default", {}),
+        ("static local", {"local": True}),
+        ("temporal t=1", {"use_temporal": True, "t": 1}),
+        ("temporal t=32 local", {"use_temporal": True, "t": 32, "local": True}),
+        ("summarize", {"summarize": True}),
+        ("summarize local", {"summarize": True, "local": True}),
+        ("force_reload local", {"force_reload": True, "local": True}),
+        ("static default", {}),
+        ("static local", {"local": True}),
+        ("temporal t=17", {"use_temporal": True, "t": 17}),
+        ("temporal t=49 local", {"use_temporal": True, "t": 49, "local": True}),
+        ("summarize", {"summarize": True}),
+        ("summarize local", {"summarize": True, "local": True}),
+    ]
+    results = []
+    for desc, kwargs in load_elliptic_test_cases:
+        print(f"Testing: {desc}")
+        
+        try:
+            data = load_elliptic(**kwargs)
+            results.append(f"    Success: {desc}\n"
+                         + f"      nodes={data.num_nodes}, edges={data.num_edges}")
+        except Exception as e:
+            results.append(f"    Failed: {desc}\n"
+                         + f"      error={e}")
+    print("\n".join(results))
 
-    # Example usage
-    data = load_elliptic(use_temporal=True, t=2, summarize=True)
+    t_data = load_elliptic(root="../data/elliptic", force_reload=False,local=True, use_temporal=True, t=1)
 
-    if args.cluster:
-        print("Using Cluster Loader:")
-        loader = make_loader(data, loader_type='cluster', batch_size=20,
-                            num_parts=100, recursive=False,
-                            shuffle=True,
-                            num_workers=0)
-    else:
-        print("Using Neighbor Loader:")
+    loader = make_loader(
+        t_data,
+        loader_type='neighbor',
+        batch_size=1024,
+        shuffle=True,
+        test_warning="foo")
+    
 
-        # Note: The batch size and other parameters can be adjusted as needed.
-        loader = make_loader(data, loader_type='neighbor', batch_size=1024, shuffle=True, test_warning="foo")
-
-    for batch in loader:
-        print(batch)
-        break
-
-
-    print()
-
+[print(i) for i in loader]
