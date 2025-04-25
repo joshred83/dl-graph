@@ -311,7 +311,8 @@ def train_test_transfer_learning(
                 timestamp=timestamp,
             )
         else:
-            print(f" Unknown classifier type '{classifier_type}'. Skipping")  
+            print(f" Unknown classifier type '{classifier_type}'. Skipping")
+    return classifier_results  
 
 def transform_data(data:Data, perturb:bool=False, interpolate:bool=False) -> Data:
     if not (perturb or interpolate):

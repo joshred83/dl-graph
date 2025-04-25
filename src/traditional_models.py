@@ -73,6 +73,7 @@ def train_traditional_classifier(
         "f1": f1_score(y_test, y_pred),
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
+        "classification_report": classification_report(y_test, y_pred, output_dict=True),   
     }
     
     if y_proba is not None:
@@ -81,7 +82,10 @@ def train_traditional_classifier(
     # Print metrics
     print(f"\n{model_name} Classifier Metrics:")
     for metric_name, metric_value in metrics.items():
-        print(f"{metric_name}: {metric_value:.3f}")
+        if metric_name != "classification_report":
+            print(f"{metric_name}: {metric_value:.3f}")
+        else:
+            print(f"{metric_name}:\n{json.dumps(metric_value, indent=2)}")
 
     # Print detailed classification report
     print("\nClassification Report:")
@@ -96,7 +100,7 @@ def train_traditional_classifier(
 
     metrics_file = os.path.join(output_directory, f"{model_name.lower()}_metrics_{timestamp}.json")
     with open(metrics_file, "w") as f:
-        json.dump({k: float(v) for k, v in metrics.items()}, f)
+        json.dump({k: v for k, v in metrics.items()}, f)
     print(f"Metrics saved to {metrics_file}")
 
     return {

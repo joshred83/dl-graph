@@ -14,6 +14,7 @@ from torch_geometric.nn import GCN, GCNConv
 from torch_geometric.data import Data
 from torch_geometric.datasets import EllipticBitcoinDataset
 from torch_geometric.data import Data
+from src.backbone import *
 
 import argparse
 import yaml
@@ -28,7 +29,7 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from src.losses.focal_loss import FocalLoss, reweight
-from main import load_dataset, create_loader, load_model_for_transfer_learning, train_test_transfer_learning
+from main import load_dataset, create_loader, load_model_for_transfer_learning, train_traditional_classifier
 
 def train_model(
     model,
@@ -79,6 +80,7 @@ def train_model(
         'precision': [],
         'recall': []
     }
+    print(f"training with {loss_type} loss on {model.__class__.__name__} model")
 
     for epoch in tqdm(range(num_epochs), desc="Epochs"):
         all_pred_labels = []
@@ -240,7 +242,7 @@ def plot_loss(
     return None
 
 def test_model(
-    model: GCN,
+    model: GCNSkipBackbone,
     data,
     device,
     batch_size=2048,
@@ -433,6 +435,33 @@ def test_model(
 
     return metrics
 
+def train_test_transfer_learning(
+    model,  
+    data,
+    device,
+    config: Dict[str, any] = None,
+    timestamp: str = None,
+) -> Dict[str, float]:
+    
+    with torch.no_grad():
+        embeddings = model(data.x, data.edge_index).detach().cpu().numpy()
+    
+    labels = data.y.detach().cpu().numpy()
+    classifier_results = {}
+    for classifier_type in config.get("classifiers", []):
+        if classifier_type in ["rf", "mlp"]:
+            print(f"\nTraining {classifier_type.upper()} classifier...")
+            classifier_results[classifier_type] = train_traditional_classifier(
+                embeddings,
+                labels,
+                classifier_type=classifier_type,
+                output_directory=config["save_dir"],
+                timestamp=timestamp,
+            )
+        else:
+            print(f" Unknown classifier type '{classifier_type}'. Skipping")
+
+
 def main(config=None):
     """
     Main function to run the training and testing pipeline
@@ -460,7 +489,11 @@ def main(config=None):
             "load_model_path": None,
             # focal loss
             "loss_type": "focal",
-            "gamma": 1.0
+            "gamma": 1.0,
+            "num_layers":2,
+            "transfer_learning": True,
+            "classifiers": ["rf", "mlp"],
+            "backbone": "gcn_skip"
         }
 
     data = load_dataset(root=config["data_root"])
@@ -471,7 +504,29 @@ def main(config=None):
 
     if config["load_model_path"] is None:
 
-        model = GCN(in_channels=data.num_features,
+        backbone = config.get("backbone", "gcn")
+
+        assert backbone in [
+                'gcn',
+                'gat',
+                'hybrid',
+                'gcn_skip',
+                'graphsage'
+            ], "Backbone must be one of ['gcn', 'gat', 'hybrid', 'gcn_skip', 'graphsage']"
+
+        match backbone:
+            case 'gcn':
+                mymodel = GCN
+            case 'gat':
+                mymodel = GATBackbone
+            case 'hybrid':
+                mymodel = HybridGCNGATBackbone
+            case 'gcn_skip':
+                mymodel = GCNSkipBackbone
+            case 'graphsage':
+                mymodel= GraphSAGEBackbone
+
+        model = mymodel(in_channels=data.num_features,
                     hidden_channels=config["hidden_dim"],
                     num_layers=config["num_layers"],
                     out_channels=2,
@@ -501,7 +556,7 @@ def main(config=None):
             timestamp=timestamp,
             loss_type=config["loss_type"],
             gamma=config["gamma"],
-            beta=config["beta"],
+            #beta=config["beta"],
         )
         plot_loss(
             training_metrics["loss_history"],
@@ -520,7 +575,7 @@ def main(config=None):
             timestamp=timestamp,
             loss_type=config["loss_type"],
             gamma=config["gamma"],
-            beta=config["beta"],
+            #beta=config["beta"],
         )
     elif config["load_model_path"] is not None:
         print(f"Loading pre-trained model from {config['load_model_path']}")
