@@ -1,0 +1,15 @@
+"num_layers": 2
+"hidden_dim": 64
+"dropout": 0.01
+"batch_size": 2056
+"num_neighbors": [10, 10]
+"learning_rate": 0.01
+"num_epochs": 20
+"data_root": "data/elliptic"
+"save_dir": "./saved_models"
+"threshold": 0.9
+"loss_type": "facal" # focal/weighted_ce
+"gamma": 1.5
+"beta": 0.5
+transfer_learning: false
+load_model_path: ~
