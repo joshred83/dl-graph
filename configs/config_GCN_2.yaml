@@ -1,0 +1,36 @@
+# Model parameters
+hidden_dim: 64
+dropout: 0.1
+
+# Training parameters
+batch_size: 4096
+num_neighbors: [10, 10]
+learning_rate: 0.001
+num_epochs: 4
+
+# Paths for output
+data_root: "data/elliptic"
+save_dir: "./saved_models"
+
+# threshold for testing
+threshold: 0.9
+
+# transfer learning options
+transfer_learning: true
+load_model_path: null
+
+# focal loss
+loss_type: "focal"
+gamma: 1.0
+num_layers: 2
+
+# classifier options
+classifiers: ["rf", "mlp"]
+
+# backbone model
+backbone: "graphsage"
+
+# data transformation options
+transform:
+  perturb: false
+  interpolate: false
