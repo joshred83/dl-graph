@@ -30,6 +30,9 @@ from sklearn.metrics import (
 )
 from src.losses.focal_loss import FocalLoss, reweight
 from main import load_dataset, create_loader, load_model_for_transfer_learning, train_traditional_classifier
+from src.transforms import Interpolator, Perturber
+from torch_geometric.transforms import Compose
+
 
 def train_model(
     model,
@@ -461,6 +464,25 @@ def train_test_transfer_learning(
         else:
             print(f" Unknown classifier type '{classifier_type}'. Skipping")
 
+def transform_data(data:Data, perturb:bool=False, interpolate:bool=False) -> Data:
+    if not (perturb or interpolate):
+        return data
+    
+    if (perturb or interpolate):
+        pipeline = []
+
+        if perturb:
+            print("Using perturbation")
+            p = Perturber()
+            pipeline.append(p)
+        if interpolate:
+            print("Using interpolation")
+            i = Interpolator(interpolation_rate=0.1)
+            pipeline.append(i)
+
+        transform = Compose(pipeline)
+    
+    return transform(data)
 
 def main(config=None):
     """
@@ -493,10 +515,15 @@ def main(config=None):
             "num_layers":2,
             "transfer_learning": True,
             "classifiers": ["rf", "mlp"],
-            "backbone": "gcn_skip"
+            "backbone": "gcn_skip",
+            "transform": {
+                "perturb": False,
+                "interpolate": False,
+            },
         }
 
     data = load_dataset(root=config["data_root"])
+    input_nodes= data.train_mask
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
     print(f"Timestamp: {timestamp}")
@@ -534,6 +561,9 @@ def main(config=None):
                     )
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
+
+        data = transform_data(data, perturb=config['transform']['perturb'], 
+                                interpolate=config['transform']['interpolate'])
 
         train_loader = create_loader(
             data,
