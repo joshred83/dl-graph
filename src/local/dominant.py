@@ -182,11 +182,11 @@ class DOMINANT(PyGDOMINANT):
                 batch_size = sampled_data.batch_size
                 node_idx = sampled_data.n_id
 
-                loss, score, attr_loss, struct_loss = self.forward_model(sampled_data)
+                loss, raw_score, batch_attr_loss, batch_struct_loss = self.forward_model(sampled_data)
                 epoch_loss += loss.item() * batch_size
-                attr_loss += attr_loss.item() * batch_size
-                struct_loss += struct_loss.item() * batch_size
-                self.decision_score_[node_idx[:batch_size]] = score
+                attr_loss += batch_attr_loss.item() * batch_size
+                struct_loss += batch_struct_loss.item() * batch_size
+                self.decision_score_[node_idx[:batch_size]] = raw_score
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -213,6 +213,7 @@ class DOMINANT(PyGDOMINANT):
         
             if self.eval_data is not None:
                 self.evaluate(epoch=epoch)
+        self.decision_score_ = self.decision_score_.detach().cpu()
         self._process_decision_score()
         self.scores_["train"] = self.decision_score_.numpy()
         return self
@@ -229,6 +230,9 @@ class DOMINANT(PyGDOMINANT):
 
             x_, s_ = self.model(x, edge_index)
 
+            # Ensure tensors are on the same device
+            x = x.to(x_.device)
+            s = s.to(s_.device)
             score, attr_loss, struct_loss = double_recon_loss(
                 x,
                 x_,
