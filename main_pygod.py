@@ -27,14 +27,14 @@ from src.traditional_models import train_traditional_classifier
 import argparse
 import yaml
 import warnings
-from pygod.detector import DOMINANT
+#from pygod.detector import DOMINANT
+from src.local.dominant import DOMINANT
 from src.loaders import neighbor_loader
 from src.backbone import HybridGCNGATBackbone, GATBackbone, GCNSkipBackbone, GraphSAGEBackbone
 from torch_geometric.nn import GCN
 from src.transforms import Interpolator, Perturber
 from torch_geometric.transforms import Compose
-
-
+from functools import partial
 
 def load_dataset(root=None, 
         force_reload=False,
@@ -109,7 +109,7 @@ def create_model(config=None) -> Tuple[DOMINANT, torch.device]:
         'batch_size': config.get('batch_size', 0),
         'num_neigh': config.get('num_neigh', -1),
         'weight': config.get('weight', 0.5),
-        'verbose': config.get('verbose', 1),
+        'verbose': config.get('verbose', 3),
     }
 
     backbone = config.get("backbone", "gcn")
@@ -475,4 +475,4 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, default=None, help='Path to the YAML configuration file')
     args = parser.parse_args()
     
-    main(config_path=args.config)
+    main(config_path="configs/Base_config.yaml")
