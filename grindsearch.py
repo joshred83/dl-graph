@@ -586,13 +586,14 @@ def main():
     if args.reduced:
         # Reduced parameter grid for quicker testing
         param_grid = {
-            'backbone': ['gcn', 'gcn_skip'],  # Only two backbone types
-            'hidden_dim': [64],               # Only one hidden dimension
-            'dropout': [0.3],                 # Only one dropout rate
-            'learning_rate': [0.001],         # Only one learning rate
+            'backbone': ['gcn', 'gat', 'hybrid','graphsage'],  # Only two backbone types  
+            'hidden_dim': [128],               # Only one hidden dimension
+            'dropout': [0.3],                 # Only one dropout rate 
+            'learning_rate': [0.01],         # Only one learning rate 
             'gamma': [1.0],                   # Only one gamma value
             'num_layers': [2],                # Only one layer count
             'batch_size': [2048],             # Only one batch size
+            'loss_type': ['focal', 'weighted_ce', 'ce'],
             'perturb': [False]                # Only one perturbation setting
         }
         print("Running with reduced parameter grid for faster execution")
@@ -611,18 +612,21 @@ def main():
     
     # Define base configuration
     base_config = {
-        'num_epochs': 20,
+        'num_epochs': 100,
         'num_neighbors': [10, 10],
         'save_dir': args.output_dir,
         'data_root': args.data_root,
         'threshold': 0.5,
         'transfer_learning': False,
         'load_model_path': None,
-        'loss_type': 'focal',
         'transform': {
             'interpolate': False,
         }
     }
+
+    print("Base configuration:")
+    for key, value in base_config.items():
+        print(f"  {key}: {value}")
     
     # Load dataset
     print("Loading dataset...")

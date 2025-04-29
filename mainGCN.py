@@ -15,6 +15,8 @@ from torch_geometric.data import Data
 from torch_geometric.datasets import EllipticBitcoinDataset
 from torch_geometric.data import Data
 from src.backbone import *
+from sklearn.utils.class_weight import compute_class_weight
+
 
 import argparse
 import yaml
@@ -42,7 +44,7 @@ def train_model(
     num_epochs=5,
     output_directory="./outputs",
     timestamp: str = None,
-    loss_type: str = "focal", # 'focal' or 'ce'
+    loss_type: str = "focal", # 'focal' or 'ce' or 'weighted_ce'
     per_cls_weights: torch.Tensor = None,
     gamma: float = 1.0,
     beta: float = 0.0,
@@ -118,14 +120,26 @@ def train_model(
                     continue
                 # print(f"training with focal, weights {torch.unique(train_labels, return_counts=True)}, gamma {gamma}, beta {beta}")
                 criterion = FocalLoss(weight=per_cls_weights, gamma=gamma)
-                loss = criterion(
-                    train_out, train_labels)
+                # loss = criterion(
+                #     train_out, train_labels)
 
+            elif loss_type == 'weighted_ce':
+
+                # print(f"unique labels in batch (torch.unique(batch.y)): {torch.unique(batch.y)}, type {batch.y.dtype}, shape {batch.y.shape}")
+                # print(f"unique labels filtered (torch.unique(batch.y[batch.train_mask])): {torch.unique(train_labels)}, type {train_labels.dtype}, shape {train_labels.shape}")
+                # print("testing with ce")
+                # print(f"training with ce, weights {torch.unique(train_labels)}")
+                weight = compute_class_weight(
+                                        class_weight = "balanced",
+                                        classes = np.array([0, 1]),
+                                        y = train_labels.cpu().numpy()                                                    
+                                    )
+                criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(weight, dtype=torch.float).to(device))
+            
             else:
-                # print("training with ce")
                 criterion = torch.nn.CrossEntropyLoss()
-                loss = criterion(
-                    train_out, train_labels)
+            
+            loss = criterion(train_out, train_labels)
             
             loss.backward()
             # torch.nn.utils.clip_grad_norm_(
@@ -253,7 +267,7 @@ def test_model(
     output_directory="./outputs",
     threshold=0.5,
     timestamp: str = None,
-    loss_type: str = "focal",  # 'focal' or 'ce'
+    loss_type: str = "focal",  # 'focal' or 'ce' or 'weighted_ce
     gamma: float = 1.0,
     beta: float = 0.0,
 ) -> Dict[str, float]:
@@ -335,8 +349,17 @@ def test_model(
                     continue
                 # print(f"testing with focal, weights {per_cls_weights}, gamma {gamma}, beta {beta}")
                 criterion = FocalLoss(weight=per_cls_weights.to(device), gamma=gamma)
-            else:
+            elif loss_type == 'weighted_ce':
                 # print("testing with ce")
+                print(f"unique labels in test_mask: {torch.unique(y_true)}")
+                weight = compute_class_weight(
+                                        class_weight = "balanced",
+                                        classes = np.array([0, 1]),
+                                        y = y_true.cpu().numpy()                                                    
+                                    )
+                criterion = torch.nn.CrossEntropyLoss(weight=torch.tensor(weight, dtype=torch.float).to(device))
+            
+            else:
                 criterion = torch.nn.CrossEntropyLoss()
 
             loss = criterion(y_pred_logits, y_true)
